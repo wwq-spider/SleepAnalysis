@@ -30,7 +30,9 @@ public class Application {
             @Override
             public void run() {
                 try {
-                    ExecuteResult executeResult = startAnalysis(args[0]);
+                    /*ExecuteResult executeResult = startAnalysis(args[0]);*/
+
+                    ExecuteResult executeResult = startAnalysis("C:\\Users\\Heyq\\Desktop\\CNU0210270_Bdata_1sec_2204262255.csv");
 
                     logger.info("analysis finished: %s", JSONObject.toJSONString(executeResult));
                 } catch (Exception e) {
