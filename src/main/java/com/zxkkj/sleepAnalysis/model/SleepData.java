@@ -29,6 +29,6 @@ public class SleepData implements Serializable {
     //血氧饱和度
 
     //离床次数及总离床时长
-    private String offBedTime;
+    private Integer offBedTime;
     private Integer offBedAllTime;
 }
