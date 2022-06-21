@@ -1,5 +1,6 @@
 package com.zxkkj.sleepAnalysis.model;
 
+import cn.hutool.core.text.csv.CsvRow;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -11,6 +12,8 @@ import java.util.List;
  */
 @Data
 public class SleepData implements Serializable {
+
+    private List<CsvRow> rowList = new ArrayList<>();
 
     //离床数据
     private List<String[]> leaveDatas = new ArrayList<>();
@@ -24,4 +27,8 @@ public class SleepData implements Serializable {
     //呼吸率
 
     //血氧饱和度
+
+    //离床次数及总离床时长
+    private String offBedTime;
+    private Integer offBedAllTime;
 }
