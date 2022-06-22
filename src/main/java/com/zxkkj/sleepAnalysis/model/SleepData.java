@@ -6,6 +6,7 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 睡眠数据
@@ -31,4 +32,13 @@ public class SleepData implements Serializable {
     //离床次数及总离床时长
     private Integer offBedTime;
     private Integer offBedAllTime;
+
+    //各睡眠段心率的最大值、最小值、平均值
+    private List<String[]> hrMaxMin = new ArrayList<>();
+
+    //全程心率最大值、最小值、平均值
+    private List<String[]> hrMaxMinAll = new ArrayList<>();
+
+    //各睡眠段分期
+    private List<Map<String,List>> sleepPhase = new ArrayList<>();
 }
