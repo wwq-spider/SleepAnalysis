@@ -4,15 +4,20 @@ import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.text.csv.CsvReadConfig;
 import cn.hutool.core.text.csv.CsvRow;
 import cn.hutool.core.text.csv.CsvUtil;
+import com.zxkkj.sleepAnalysis.constants.Constants;
 import com.zxkkj.sleepAnalysis.model.AnalysisReult;
 import com.zxkkj.sleepAnalysis.model.SleepData;
+import com.zxkkj.sleepAnalysis.model.SleepInfo;
 import com.zxkkj.sleepAnalysis.service.IAnalysisService;
+import com.zxkkj.sleepAnalysis.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class AnalysisServiceImpl implements IAnalysisService {
 
@@ -197,17 +202,127 @@ public class AnalysisServiceImpl implements IAnalysisService {
         return null;
     }
 
+
     /**
-     * 计算每个睡眠段的波峰/波谷值、波峰/波谷时刻
-     * @param rowList
-     * @param bedData
+     * 计算该在床时间段的睡眠分期
+     * @param sleepInfoList 整个睡眠数据
+     * @param onBedData     当前睡眠段
+     * @param first         是否为首次入睡睡眠段
+     * @param htStatByWhole 整个睡眠周期的心率统计值
      * @return
      */
-    private List<Integer[]> calTroughAndPeakByBedData(List<CsvRow> rowList, String[] bedData) {
+    private List<AnalysisReult.SleepStage> sleepStageSplit(List<SleepInfo> sleepInfoList, SleepData.OnBedData onBedData, boolean first, AnalysisReult.HrStatInfo htStatByWhole) {
+        //先获取该睡眠段开始100秒内的最大心率
+        int maxHr = CommonUtils.maxOrMinHr(sleepInfoList.subList(onBedData.getHrStartTime(), onBedData.getHrStartTime() + 100), Constants.Max)[0];
+
+        List<AnalysisReult.SleepStage> sleepStageList = new ArrayList<>();
+
+        //首次入睡时的心率 阈值
+        double firstSleepHrPrecent = 1 - 0.088;
+        double firstSleepHrThreshold = maxHr * firstSleepHrPrecent;
+
+        //非首次入睡时的心率 阈值
+        double noFirstSleepHrPrecent = 1 - 0.033;
+        double noFirstSleepHrThreshold = maxHr * noFirstSleepHrPrecent;
+
+        //从开始有心率的时刻开始找入睡期
+        //刚开始入睡是心率下降期  所以这里需要找到入睡点
+        for (int i = onBedData.getHrStartTime(); i <= onBedData.getOnBenEndTime(); i++) {
+            SleepInfo sleepInfo = sleepInfoList.get(i);
+            //判断是首次入睡 还是非首次入睡 心率阈值不一样
+            boolean flag = first ? sleepInfo.getHr() <= firstSleepHrThreshold : sleepInfo.getHr() <= noFirstSleepHrThreshold;
+            if (flag) {
+                sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.WakeUP.getValue(), onBedData.getOnBedStartTime(), i));
+                break;
+            }
+        }
+
+        //开始找浅睡期 先计算心率波峰和波谷
+        List<Integer[]> troughAndPeakList = calTroughAndPeakByBedData(sleepInfoList, onBedData);
+
+        //与最低心率差值 阈值
+        int minHrDiffThreshold = 6;
+        //波谷前偏移时间
+        int troughBeforeTimeThreshold = 3 * 60;
+        //波谷后偏移时间
+        int troughAfterTimeThreshold1 = 2 * 60;
+        //波谷后偏移时间
+        int troughAfterTimeThreshold2 = 1 * 60;
+
+        //波峰与最大心率差值阈值
+        int maxHrDiffThreshold = 8;
+        //波峰前时间阈值
+        int peakBeforeTimeThreshold = 2 * 60;
+        //波峰后时间阈值
+        int peakAfterTimeThreshold = 3 * 60;
+
+        //基于上面的心率波峰、波谷 计算浅睡期
+        for (int i=0; i < troughAndPeakList.size(); i++) {
+            AnalysisReult.SleepStage lastSleepStage = sleepStageList.get(sleepStageList.size() - 1);
+            int troughOrPeakvalue = troughAndPeakList.get(i)[0];
+            int troughOrPeakTime = troughAndPeakList.get(i)[1];
+            if (i % 2 == 0) { //波谷
+                if(troughOrPeakvalue - htStatByWhole.getMin() < minHrDiffThreshold) {
+                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
+                        lastSleepStage.setEndTime(troughOrPeakTime - troughBeforeTimeThreshold);
+                    } else { //如前期不是浅睡眠，则建立新浅睡眠分期
+                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波谷前3分钟
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                lastSleepStage.getEndTime(), troughOrPeakTime - troughBeforeTimeThreshold));
+                        //第n期为深睡、起始时刻为前期的结束时刻、终止时刻为波谷后2分钟
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.DeepSleep.getValue(),
+                                troughOrPeakTime - troughBeforeTimeThreshold, troughOrPeakTime + troughAfterTimeThreshold1));
+                    }
+                } else { //整段为浅睡眠
+                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //如果前段已经是浅睡眠，则延续
+                        //将前期的浅睡结束时刻后延至为终止时刻为波谷后1分钟，n不变
+                        lastSleepStage.setEndTime(troughOrPeakTime + troughAfterTimeThreshold2);
+                    } else {
+                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波谷后1分钟
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                lastSleepStage.getEndTime(), troughOrPeakTime + troughAfterTimeThreshold2));
+                    }
+                }
+            } else { //波峰
+                if (Math.abs(troughOrPeakTime - sleepInfoList.size()) < 1 * 60 && (htStatByWhole.getMax() - troughOrPeakvalue) < maxHrDiffThreshold) {
+                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
+                        lastSleepStage.setEndTime(troughOrPeakTime - peakBeforeTimeThreshold);
+                    } else {
+                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波峰前2分钟
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                lastSleepStage.getEndTime(), troughOrPeakTime - peakBeforeTimeThreshold));
+                        //第n期为觉醒、起始时刻为前期的结束时刻、终止时刻为监测终时刻
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.WakeUP.getValue(),
+                                troughOrPeakTime - peakBeforeTimeThreshold, sleepInfoList.size()));
+                    }
+                } else {
+                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
+                        lastSleepStage.setEndTime(troughOrPeakTime - peakAfterTimeThreshold);
+                    } else {
+                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波峰前3分钟
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                lastSleepStage.getEndTime(), troughOrPeakTime - peakAfterTimeThreshold));
+                        //第n期为REM、起始时刻为前期的结束时刻、终止时刻为波峰后3分钟
+                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.RemSleep.getValue(),
+                                troughOrPeakTime - peakAfterTimeThreshold, troughOrPeakTime + peakAfterTimeThreshold));
+                    }
+                }
+            }
+        }
+        return sleepStageList;
+    }
+
+    /**
+     * 计算每个睡眠段的波峰/波谷值、波峰/波谷时刻
+     * @param sleepInfoList
+     * @param onBedData
+     * @return 返回长度为的数组 0:波峰/波谷值 1:所在位置
+     */
+    private List<Integer[]> calTroughAndPeakByBedData(List<SleepInfo> sleepInfoList, SleepData.OnBedData onBedData) {
         //开始时刻为0心率 开始时刻后20分钟？？？合理吗
-        int startTime = Integer.parseInt(bedData[1]) + 20 * 60;
+        int startTime = onBedData.getOnBedStartTime() + 20 * 60;
         //结束时间
-        Integer endTime = Integer.parseInt(bedData[3]) - 12 * 60;
+        Integer endTime = onBedData.getOnBenEndTime() - 12 * 60;
 
         List<Integer[]> result = new ArrayList<>();
 
@@ -215,49 +330,18 @@ public class AnalysisServiceImpl implements IAnalysisService {
 
         while (startTime < endTime) {
             int k = result.size() + 1;
-            if (k % 2 > 0) { //奇数  说明是波谷
-                int endCursor = 0;
-                if (startTime + windows > rowList.size() - 120) { //防止超出数据长度
-                    endCursor = rowList.size() - 120;
-                } else {
-                    endCursor += windows;
-                }
-                Integer[] res = maxOrMinHr(rowList.subList(startTime, endCursor), 1);
-                startTime += res[1]; //指标向右移动
-                result.add(new Integer[]{res[0], startTime});
+            int endCursor = 0;
+            if (startTime + windows > sleepInfoList.size() - 120) { //防止超出数据长度
+                endCursor = sleepInfoList.size() - 120;
+            } else {
+                endCursor += windows;
             }
+            int type = k % 2 > 0 ? Constants.Min : Constants.Max;
+            Integer[] res = CommonUtils.maxOrMinHr(sleepInfoList.subList(startTime, endCursor), type);
+            startTime += res[1]; //指标向右移动
+            result.add(new Integer[]{res[0], startTime});
         }
         return result;
-    }
-
-    /**
-     * 求最大/最小心率
-     * @param rowList
-     * @param type 1:求最小  2:求最大
-     * @return
-     */
-    private Integer[] maxOrMinHr(List<CsvRow> rowList, int type) {
-        if (CollectionUtil.isEmpty(rowList)) {
-            throw new IllegalArgumentException("Number array must not empty !");
-        } else {
-            int current = Integer.parseInt(rowList.get(0).get(1));
-            int index = 0;
-            for(int i = 1; i < rowList.size(); ++i) {
-                Integer curHr = Integer.parseInt(rowList.get(i).get(1));
-                if (type == 1) {
-                    if (current > curHr) {
-                        current = curHr;
-                        index = i;
-                    }
-                } else if (type == 2) {
-                    if (current < curHr) {
-                        current = curHr;
-                        index = i;
-                    }
-                }
-            }
-            return new Integer[]{current, index};
-        }
     }
 
     @Override

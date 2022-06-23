@@ -41,4 +41,15 @@ public class SleepData implements Serializable {
 
     //各睡眠段分期
     private List<Map<String,List>> sleepPhase = new ArrayList<>();
+
+    //在床数据信息
+    @Data
+    public class OnBedData{
+
+        private int onBedStartTime;
+
+        private int hrStartTime;
+
+        private int onBenEndTime;
+    }
 }
