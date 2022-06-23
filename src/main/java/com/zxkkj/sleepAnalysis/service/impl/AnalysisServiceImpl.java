@@ -110,14 +110,16 @@ public class AnalysisServiceImpl implements IAnalysisService {
         }
         //对非0心率0呼吸段的数据进行平滑滤波
         List<CsvRow> Data_smooth = rowList;
-        List listSmooth = new ArrayList();
+        for (int i = 0; i < sleepData.getBedData().size(); i++) {
 
+            int start = Integer.valueOf(sleepData.getBedData().get(i)[1]);
+            int end = Integer.valueOf(sleepData.getBedData().get(i)[2]);
+            Data_smooth = this.smooth(Data_smooth,start,end);
+        }
         //各睡眠段分期：对各睡眠段，进行睡眠分期，划分为觉醒期、浅睡眠期、深睡眠期、快速眼动睡眠期
         for (int i = 0; i < sleepData.getBedData().size(); i++) {
             int start = Integer.valueOf(sleepData.getBedData().get(i)[1]);
             int end = Integer.valueOf(sleepData.getBedData().get(i)[2]);
-
-            listSmooth = Data_smooth.subList(start,end);
 
             String[] hr_max_min_i = new String[3];//各睡眠段心率最大、最小、平均
             hr_max_min_i[0] = Data_smooth.get(start).get(1);//假设第一个为最大值
@@ -125,10 +127,6 @@ public class AnalysisServiceImpl implements IAnalysisService {
             hr_max_min_i[2] = "";
             double avaTemp = 0;
             for (int j = start; j < end-1; j++) {
-                /*CsvRow csvRow = Data_smooth.get(j);
-                CsvRow csvRow1 = Data_smooth.get(j+1);
-                csvRow.set(1,String.valueOf(Integer.valueOf(Data_smooth.get(j).get(1)) * 1000));
-                csvRow.set(2,String.valueOf(Integer.valueOf(Data_smooth.get(j).get(1)) * 1000));*/
                 if (Integer.valueOf(Data_smooth.get(j).get(1)) > Integer.valueOf(hr_max_min_i[0])){//求心率最大值
                     hr_max_min_i[0] = Data_smooth.get(j).get(1);
                 }
@@ -175,15 +173,22 @@ public class AnalysisServiceImpl implements IAnalysisService {
             int m = 1;
             //确定该睡眠段的第1期（觉醒期）的结束时刻
             int k = 0;
-            if (i == 1){//如果是初次入睡段，起始心率高
+            if (i == 0){//如果是初次入睡段，起始心率高
                 k = 0;
-                for (int j = Integer.valueOf(sleepData.getBedData().get(i)[1]); j < Integer.valueOf(sleepData.getBedData().get(i)[2]); j++) {
-                    if (Double.valueOf(Data_smooth.get(j).get(1)) <= a*(1-0.088) && k==0){//计算首段入眠心率阈值
-                        //sleep_phase(n,1:3,i)=[1 sleep(i,1) j];%第1分期、起始时刻为睡眠段起始时刻、结束时刻j
+                List<Map<Integer,List<Map>>> listPhase = new ArrayList();//睡眠分期list
+                Map mapPhase = new HashMap();
+                Map mapSleepTime = new HashMap();//key：分期序号-醒，value：起始时刻-结束时刻
+                for (int j = start; j < Integer.valueOf(sleepData.getBedData().get(i)[2]); j++) {
 
-                        n += 1;k=1;
+                    if (Double.valueOf(Data_smooth.get(j).get(1)) <= a*(1-0.088) && k==0){//计算首段入眠心率阈值
+
+                        mapSleepTime.put(1,sleepData.getBedData().get(i)[0] + "-" + j);
+                        mapPhase.put(m,mapSleepTime);
+
+                        m += 1;k=1;
                     }
                 }
+                listPhase.add(mapPhase);
             }else {
 
             }
@@ -315,17 +320,25 @@ public class AnalysisServiceImpl implements IAnalysisService {
      * 平滑滤波
      * @param list
      */
-    public static List smooth(List list){
-        int size = list.size();
-        int medium = 301;
-        int current = 150;
-        double smoothDb = 0.0;
-        for (int i = current; i < size - current; i++) {
-            for (int j = i; j < i + current; j++) {
-                smoothDb += Double.valueOf(list.get(j).toString());
+    public static List<CsvRow> smooth(List<CsvRow> list,int start,int end) {
+        if (list.size() >= 5){
+            list.get(start).set(1,list.get(start).get(1));
+            list.get(start+1).set(1,String.valueOf((Integer.valueOf(list.get(start).get(1))+
+                    Integer.valueOf(list.get(start+1).get(1))+
+                    Integer.valueOf(list.get(start+2).get(1)))/3));
+            for (int i = start+2; i < end - 2; i++) {
+                CsvRow csvRow = (CsvRow) list.get(i);
+                csvRow.set(1,String.valueOf((Integer.valueOf(list.get(i-2).get(1))+
+                        Integer.valueOf(list.get(i-1).get(1))+
+                        Integer.valueOf(list.get(i).get(1))+
+                        Integer.valueOf(list.get(i+1).get(1))+
+                        Integer.valueOf(list.get(i+2).get(1))
+                        )/5));
             }
-            smoothDb = smoothDb/medium;
-            list.set(i,smoothDb);
+            list.get(end-2).set(1,String.valueOf((Integer.valueOf(list.get(end-3).get(1))+
+                    Integer.valueOf(list.get(end-2).get(1))+
+                    Integer.valueOf(list.get(end-1).get(1)))/3));
+            list.get(end-1).set(1,String.valueOf(Integer.valueOf(list.get(end-1).get(1))));
         }
         return list;
     }
