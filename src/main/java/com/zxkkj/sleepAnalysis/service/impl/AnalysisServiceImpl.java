@@ -1,5 +1,6 @@
 package com.zxkkj.sleepAnalysis.service.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.text.csv.CsvReadConfig;
 import cn.hutool.core.text.csv.CsvRow;
 import cn.hutool.core.text.csv.CsvUtil;
@@ -10,8 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.*;
-import java.util.zip.Adler32;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AnalysisServiceImpl implements IAnalysisService {
 
@@ -194,6 +195,69 @@ public class AnalysisServiceImpl implements IAnalysisService {
             }
         }
         return null;
+    }
+
+    /**
+     * 计算每个睡眠段的波峰/波谷值、波峰/波谷时刻
+     * @param rowList
+     * @param bedData
+     * @return
+     */
+    private List<Integer[]> calTroughAndPeakByBedData(List<CsvRow> rowList, String[] bedData) {
+        //开始时刻为0心率 开始时刻后20分钟？？？合理吗
+        int startTime = Integer.parseInt(bedData[1]) + 20 * 60;
+        //结束时间
+        Integer endTime = Integer.parseInt(bedData[3]) - 12 * 60;
+
+        List<Integer[]> result = new ArrayList<>();
+
+        int windows = 50 * 60;
+
+        while (startTime < endTime) {
+            int k = result.size() + 1;
+            if (k % 2 > 0) { //奇数  说明是波谷
+                int endCursor = 0;
+                if (startTime + windows > rowList.size() - 120) { //防止超出数据长度
+                    endCursor = rowList.size() - 120;
+                } else {
+                    endCursor += windows;
+                }
+                Integer[] res = maxOrMinHr(rowList.subList(startTime, endCursor), 1);
+                startTime += res[1]; //指标向右移动
+                result.add(new Integer[]{res[0], startTime});
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 求最大/最小心率
+     * @param rowList
+     * @param type 1:求最小  2:求最大
+     * @return
+     */
+    private Integer[] maxOrMinHr(List<CsvRow> rowList, int type) {
+        if (CollectionUtil.isEmpty(rowList)) {
+            throw new IllegalArgumentException("Number array must not empty !");
+        } else {
+            int current = Integer.parseInt(rowList.get(0).get(1));
+            int index = 0;
+            for(int i = 1; i < rowList.size(); ++i) {
+                Integer curHr = Integer.parseInt(rowList.get(i).get(1));
+                if (type == 1) {
+                    if (current > curHr) {
+                        current = curHr;
+                        index = i;
+                    }
+                } else if (type == 2) {
+                    if (current < curHr) {
+                        current = curHr;
+                        index = i;
+                    }
+                }
+            }
+            return new Integer[]{current, index};
+        }
     }
 
     @Override
