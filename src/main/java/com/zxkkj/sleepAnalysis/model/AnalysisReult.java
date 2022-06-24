@@ -51,11 +51,11 @@ public class AnalysisReult implements Serializable {
     @NoArgsConstructor
     public static class HrStatInfo {
 
-        private int max;
+        private double max;
 
-        private int min;
+        private double min;
 
-        private int avg;
+        private double avg;
     }
 
     //监测总时长(秒)
