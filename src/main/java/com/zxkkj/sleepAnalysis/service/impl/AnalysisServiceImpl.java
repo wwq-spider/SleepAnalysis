@@ -29,81 +29,84 @@ public class AnalysisServiceImpl implements IAnalysisService {
         CsvReadConfig csvConfig = new CsvReadConfig();
         List<CsvRow> rowList = CsvUtil.getReader(csvConfig).read(localFile).getRows();
         //离床数据
+        List<SleepInfo> sleepInfo = this.readSleepInfo(rowList);
         //读取离床数据
-        SleepData sleepData = new SleepData();
-        sleepData = this.leaveOnBed(rowList);
+        SleepData sleepData = this.leaveOnBed(sleepInfo);
         //原始数据
         sleepData.setRowList(rowList);
+        sleepData.setSleepInfoList(sleepInfo);
         return sleepData;
+    }
+
+    /**
+     * 读取数据：状态-心率-呼吸
+     * @param rowList
+     * @return
+     */
+    private List<SleepInfo> readSleepInfo(List<CsvRow> rowList) {
+        List<SleepInfo> list = new ArrayList<>();
+        for (int i = 1; i < rowList.size() - 1; i++) {//第一行表头过滤
+            SleepInfo sleepInfo = new SleepInfo();
+            sleepInfo.setStatus(Integer.parseInt(rowList.get(i).get(0)));//状态
+            sleepInfo.setHr(Double.valueOf(rowList.get(i).get(1)));//心率
+            sleepInfo.setRe(Double.valueOf(rowList.get(i).get(2)));//呼吸
+            list.add(sleepInfo);
+        }
+        return list;
     }
 
     @Override
     public AnalysisReult executeAnalysis(SleepData sleepData) {
-        //搜索睡眠分析段:得到各在床段数组sleep，信息包含：在床起始时刻、心率呼吸率产生时刻、在床结束时刻
-        List<String[]> leaveDatas = sleepData.getLeaveDatas();
         List<CsvRow> rowList = sleepData.getRowList();
-        int n = 0;//第1个睡眠段（离床将睡眠分为几个睡眠段）
-        //String[] array = new String[3];//睡眠分析段：行号为睡眠段序号，第1列为在床起始时刻、第2列为心率呼吸产生时刻、第3列为在床结束时刻
-        if ("0".equals(leaveDatas.get(0)[0])) {//如果无离床段
-            String[] array = new String[3];
-            //全程为睡眠段
-            array[0] = "1";
-            array[2] = String.valueOf(rowList.size());
-            for (int i = 0; i < 90; i++) {//从开始监测的90秒内搜寻非0心率与非0呼吸率时刻(因为在床后60秒即可测出心率和呼吸率)
-                if (!"0".equals(rowList.get(i).get(1)) && !"0".equals(rowList.get(i).get(2))) {
-                    array[1] = String.valueOf(i);
+        List<Integer[]> leaveDatas = sleepData.getLeaveDatas();
+        List<SleepData.OnBedData> onBedDataList = new ArrayList<>();
+        if (leaveDatas.size() == 0 || leaveDatas == null){//全程为睡眠段
+            SleepData.OnBedData onBedData = new SleepData().new OnBedData();
+            onBedData.setOnBedStartTime(1);
+            onBedData.setOnBenEndTime(leaveDatas.size());
+            for (int i = 1; i < 90; i++) {
+                if (!"0".equals(rowList.get(i).get(1)) && !"0".equals(rowList.get(i).get(2))){
+                    onBedData.setHrStartTime(i);
                 }
+                onBedDataList.add(onBedData);
             }
-            sleepData.getBedData().add(array);
-        } else {
-            String[] array = new String[3];
+        }else {
             int k1 = 0;
-            if ("1".equals(leaveDatas.get(0)[0])) {//如果监测从离床状态开始
-                array[0] = leaveDatas.get(0)[1];//以离床状态结束作为第一睡眠段的开始时刻
-                k1 = 1;//从第2离床段开始搜寻睡眠段
-            } else {
-                array[0] = "1";//如果监测从在床状态开始，开始监测时刻为第一睡眠段的开始时刻
-                k1 = 0;//从第1离床段开始搜索睡眠段
+            int j = 0;
+            SleepData.OnBedData onBedData = new SleepData().new OnBedData();
+            if (leaveDatas.get(0)[0] ==1){//如果监测从离床状态开始
+                onBedData.setOnBedStartTime(leaveDatas.get(0)[1]);
+                k1 = 1;
+            }else {
+                onBedData.setOnBedStartTime(1);
+                k1 = 0;
             }
-            for (int i = k1; i < leaveDatas.size(); i++) {//从在床后第1次离床开始逐段确认
-                sleepData.getBedData().add(array);
-                array[2] = String.valueOf(Integer.valueOf(leaveDatas.get(i)[0]) - 1);//第n段睡眠结束段为第i次离床开始的前时刻
-                int j = Integer.valueOf(sleepData.getBedData().get(n)[0]);
-                while (j < Integer.valueOf(sleepData.getBedData().get(n)[0]) + 90) {//搜寻非0心率非0呼吸率起始时刻
-                    if (!"0".equals(rowList.get(j).get(1)) && !"0".equals(rowList.get(j).get(2)) || j == rowList.size()) {
-                        array[1] = String.valueOf(j);
-                        j = sleepData.getBedData().size() + 90;//结束搜寻
+            for (int i = k1; i < leaveDatas.size(); i++) {
+                onBedData.setOnBenEndTime(leaveDatas.get(i)[0] - 1);
+                onBedDataList.add(onBedData);
+                j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
+                while (j < onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() + 90){
+                    if (!"0".equals(rowList.get(j).get(1)) && !"0".equals(rowList.get(j).get(2)) || j == rowList.size()){
+                        onBedData.setHrStartTime(j);
+                        j = onBedData.getOnBedStartTime()+90;
                         break;
                     }
                     j += 1;
                 }
-                n += 1;
-                array = new String[3];
-                array[0] = String.valueOf(Integer.valueOf(leaveDatas.get(i)[1]) + 1);//新一段睡眠开始时刻为第i次离床结束的后时刻
+                onBedData = new SleepData().new OnBedData();
+                onBedData.setOnBedStartTime(leaveDatas.get(i)[1]);
             }
-             if (Integer.valueOf(sleepData.getBedData().get(sleepData.getBedData().size() - 1)[0]) >= rowList.size()) {//如果最后一次睡眠段起始时刻超过监测终点时刻
-                //删除最后一次睡眠段（说明最后记录为永久离床）
-                sleepData.getBedData().remove(n - 1);
-            } else {//最后一次睡眠起始时刻未超过监测终点，则以监测终点为该睡眠段终点，并从起始时刻搜寻非0数据起始位置
-                sleepData.getBedData().get(n - 1)[2] = String.valueOf(rowList.size());
-                int j = Integer.valueOf(sleepData.getBedData().get(n - 1)[0]);
-                while (j < Integer.valueOf(sleepData.getBedData().get(n - 1)[0]) + 90) {//搜寻非0心率非0呼吸率起始时刻
-                    if (!"0".equals(rowList.get(j).get(1)) && !"0".equals(rowList.get(j).get(2)) || j == rowList.size()) {
-                        sleepData.getBedData().get(n - 1)[1] = String.valueOf(j);
-                        j = Integer.valueOf(sleepData.getBedData().get(n - 1)[0]) + 90;//结束搜寻
-                        break;
-                    }
-                    j += 1;
-                }
-            }
+            //设此睡眠段结束时刻为监测结束时刻
+            onBedDataList.get(onBedDataList.size()-1).setOnBenEndTime(rowList.size());
         }
-        if ("0".equals(sleepData.getBedData().get(sleepData.getBedData().size() - 1)[1])) {//如果末次睡眠段未找到非0心率与非0呼吸率时刻，将此时刻设为监测终止时刻（最后一段睡眠记录不完整时出现此情况）
-            sleepData.getBedData().get(sleepData.getBedData().size() - 1)[1] = sleepData.getBedData().get(sleepData.getBedData().size() - 1)[2];
+        //如果末次睡眠段未找到非0心率与非0呼吸率时刻，将此时刻设为监测终止时刻（最后一段睡眠记录不完整时出现此情况）
+        if (onBedDataList.get(onBedDataList.size()-1).getHrStartTime() == 0){
+            onBedDataList.get(onBedDataList.size()-1).setHrStartTime(onBedDataList.get(onBedDataList.size()-1).getOnBenEndTime());
         }
         //剔除各睡眠段偶发0数据并进行临近插值处理
-        for (int j = 0; j < sleepData.getBedData().size(); j++) {//对各睡眠段数据的0数据进行插值处理
+        for (int j = 0; j < onBedDataList.size(); j++) {//对各睡眠段数据的0数据进行插值处理
             //在首次出现非0心率非0呼吸率后面寻找其他0心率和0呼吸率数据，并插值替换0数据值
-            for (int i = Integer.valueOf(sleepData.getBedData().get(j)[1]); i < Integer.valueOf(sleepData.getBedData().get(j)[2]); i++) {
+            for (int i = onBedDataList.get(j).getHrStartTime(); i < onBedDataList.get(j).getOnBenEndTime(); i++) {
                 if ("0".equals(rowList.get(i).get(1))) {
                     CsvRow csvRow = rowList.get(i);
                     csvRow.set(1,rowList.get(i-1).get(1));
@@ -116,16 +119,39 @@ public class AnalysisServiceImpl implements IAnalysisService {
         }
         //对非0心率0呼吸段的数据进行平滑滤波
         List<CsvRow> Data_smooth = rowList;
-        for (int i = 0; i < sleepData.getBedData().size(); i++) {
-
-            int start = Integer.valueOf(sleepData.getBedData().get(i)[1]);
-            int end = Integer.valueOf(sleepData.getBedData().get(i)[2]);
+        for (int i = 0; i < onBedDataList.size(); i++) {
+            int start = onBedDataList.get(i).getHrStartTime();
+            int end = onBedDataList.get(i).getOnBenEndTime();
             Data_smooth = this.smooth(Data_smooth,start,end);
         }
-        //各睡眠段分期：对各睡眠段，进行睡眠分期，划分为觉醒期、浅睡眠期、深睡眠期、快速眼动睡眠期
-        for (int i = 0; i < sleepData.getBedData().size(); i++) {
-            int start = Integer.valueOf(sleepData.getBedData().get(i)[1]);
-            int end = Integer.valueOf(sleepData.getBedData().get(i)[2]);
+        //全程心率最大、最小、平均值
+        AnalysisReult.HrStatInfo hrStatInfo = new AnalysisReult.HrStatInfo();
+        hrStatInfo = this.sleepPhaseHrDate(Data_smooth,onBedDataList,sleepData);
+        //睡眠分期
+        List<AnalysisReult.SleepStage> analysisReult = new ArrayList<>();
+        AnalysisReult.SleepStage analysisReult1 = new AnalysisReult.SleepStage();
+        for (int i = 0; i < onBedDataList.size(); i++) {
+            if (i > 0){
+                analysisReult = this.sleepStageSplit(sleepData.getSleepInfoList(),onBedDataList.get(i),true,hrStatInfo);
+            }else {
+                analysisReult = this.sleepStageSplit(sleepData.getSleepInfoList(),onBedDataList.get(i),false,hrStatInfo);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 计算睡眠全程心率最大、最小、平均值
+     * @param Data_smooth
+     * @param onBedDataList
+     * @param sleepData
+     * @return
+     */
+    private AnalysisReult.HrStatInfo sleepPhaseHrDate(List<CsvRow> Data_smooth,List<SleepData.OnBedData> onBedDataList,SleepData sleepData){
+        AnalysisReult.HrStatInfo hrStatInfo = new AnalysisReult.HrStatInfo();
+        for (int i = 0; i < onBedDataList.size(); i++) {
+            int start = onBedDataList.get(i).getHrStartTime();
+            int end = onBedDataList.get(i).getOnBenEndTime();
 
             String[] hr_max_min_i = new String[3];//各睡眠段心率最大、最小、平均
             hr_max_min_i[0] = Data_smooth.get(start).get(1);//假设第一个为最大值
@@ -145,61 +171,23 @@ public class AnalysisServiceImpl implements IAnalysisService {
             hr_max_min_i[2] = String.format("%.1f",avas);
             sleepData.getHrMaxMin().add(hr_max_min_i);
         }
-
-        String[] hr_max_min_all = new String[3];//全程心率最大、最小、平均
-        hr_max_min_all[0] = sleepData.getHrMaxMin().get(0)[0];//假设第一个为最大心率
-        hr_max_min_all[1] = sleepData.getHrMaxMin().get(0)[1];//假设第一个为最小心率
+        double hr_max = Double.parseDouble(sleepData.getHrMaxMin().get(0)[0]);//假设第一个为最大值
+        double hr_min = Double.parseDouble(sleepData.getHrMaxMin().get(0)[1]);//假设第一个为最小值
         double temp = 0.0;
         for (int j = 0; j < sleepData.getHrMaxMin().size(); j++) {
-            if (Integer.valueOf(sleepData.getHrMaxMin().get(j)[0]) > Integer.valueOf(hr_max_min_all[0])){
-                hr_max_min_all[0] = sleepData.getHrMaxMin().get(j)[0];
+            if (Integer.valueOf(sleepData.getHrMaxMin().get(j)[0]) > hr_max){
+                hr_max = Double.parseDouble(sleepData.getHrMaxMin().get(j)[0]);
             }
-            if (Integer.valueOf(sleepData.getHrMaxMin().get(j)[1]) < Integer.valueOf(hr_max_min_all[1])){
-                hr_max_min_all[1] = sleepData.getHrMaxMin().get(j)[1];
+            if (Integer.valueOf(sleepData.getHrMaxMin().get(j)[1]) < hr_min){
+                hr_min = Double.parseDouble(sleepData.getHrMaxMin().get(j)[1]);
             }
             temp += Double.valueOf(sleepData.getHrMaxMin().get(j)[2]);
         }
-        double hrAll = temp/(sleepData.getHrMaxMin().size());
-        hr_max_min_all[2] = String.format("%.1f",hrAll);
-        sleepData.getHrMaxMinAll().add(hr_max_min_all);
-
-        List<String[][]> sleepPhaseList = new ArrayList<>();
-        //对各睡眠段进行睡眠分期
-        for (int i = 0; i < sleepData.getBedData().size(); i++) {
-            int start = Integer.valueOf(sleepData.getBedData().get(i)[1]);
-            int end = Integer.valueOf(sleepData.getBedData().get(i)[1]) + 100;
-            double a = 0.0;//取开始100秒内最大心率值
-            double max = Double.valueOf(Data_smooth.get(start).get(1));//假定第一个为最大
-            for (int j = start; j < end; j++) {
-                if (Integer.valueOf(Data_smooth.get(j).get(1)) > max){
-                    max = Double.valueOf(Data_smooth.get(j).get(1));
-                }
-            }
-            a = max;
-            int m = 1;
-            //确定该睡眠段的第1期（觉醒期）的结束时刻
-            int k = 0;
-            if (i == 0){//如果是初次入睡段，起始心率高
-                k = 0;
-                List<Map<Integer,List<Map>>> listPhase = new ArrayList();//睡眠分期list
-                Map mapPhase = new HashMap();
-                Map mapSleepTime = new HashMap();//key：分期序号-醒，value：起始时刻-结束时刻
-                for (int j = start; j < Integer.valueOf(sleepData.getBedData().get(i)[2]); j++) {
-
-                    if (Double.valueOf(Data_smooth.get(j).get(1)) <= a*(1-0.088) && k==0){//计算首段入眠心率阈值
-
-                        mapSleepTime.put(1,sleepData.getBedData().get(i)[0] + "-" + j);
-                        mapPhase.put(m,mapSleepTime);
-
-                        m += 1;k=1;
-                    }
-                }
-                listPhase.add(mapPhase);
-            }else {
-
-            }
-        }
-        return null;
+        double hr_avg =  temp/(sleepData.getHrMaxMin().size());
+        hrStatInfo.setMax(Math.round(hr_max));
+        hrStatInfo.setMin(Math.round(hr_min));
+        hrStatInfo.setAvg(Math.round(hr_avg));
+        return hrStatInfo;
     }
 
 
@@ -350,71 +338,55 @@ public class AnalysisServiceImpl implements IAnalysisService {
     }
 
     /**
-     * 搜寻离床时间段：得出各离床时间段数组off_bed、离床次数与总时长数组off_bed_sum
-     *
-     * @param rowList
+     * 搜寻离床时间段：得出各离床时间段数组、离床次数与总时长数组
+     * @param sleepInfo
      * @return
      */
-    private SleepData leaveOnBed(List<CsvRow> rowList) {
+    private SleepData leaveOnBed(List<SleepInfo> sleepInfo) {
         SleepData sleepData = new SleepData();
-        List<String[]> list = new ArrayList<>();
-        int n = 1;//第1个离床时间段
+        List<Integer[]> list = new ArrayList<>();
         int start = 0;//离床时间段起始时刻，0为未计时
-        String leaveOn = "";
-        for (int i = 0; i < rowList.size() - 1; i++) {
-            String[] array = new String[2];//离床数据组：行号为离床顺序号，第1列为该次离床起始时间，第2列为该次离床结束时间（返回在床）
-            leaveOn = rowList.get(i).get(0);//暂时取第一列为离床数据
-            if (leaveOn.equals("1")) {//为离床状态
-                if (start == 0) {//i时刻刚变为离床状态
-                    array[0] = String.valueOf(i);
+        for (int i = 1; i < sleepInfo.size(); i++) {
+            Integer status = sleepInfo.get(i-1).getStatus();//当前时刻状态
+            Integer nextstatus = sleepInfo.get(i).getStatus();//下秒在状态
+            Integer[] array = new Integer[]{0,0};//离床数据组：行号为离床顺序号，第1列为该次离床起始时间，第2列为该次离床结束时间（返回在床）
+            if (status == 1){//离床
+                if (start == 0){
+                    array[0] = i;
                     start = 1;
-                    //如果下时刻状态值改变，则此次离床状态结束（仅1秒离床时才会发生此情况）
-                    if (Integer.valueOf(rowList.get(i + 1).get(0)) - Integer.valueOf(rowList.get(i).get(0)) != 0) {
-                        array[1] = String.valueOf(i);//记录此次离床结束时刻
+                    if (nextstatus - status != 0){
+                        array[1] = i+1;//记录此次离床结束时刻
                         start = 0;
-                        n += 1;
                     }
-                } else {
-                    if (Integer.valueOf(rowList.get(i + 1).get(0)) - Integer.valueOf(rowList.get(i).get(0)) != 0 && start != 0) {
-                        array[1] = String.valueOf(i);
+                }else {
+                    if (nextstatus - start != 0 && start != 0) {
+                        array[1] = i+1;
                         start = 0;
-                        n += 1;
                     }
                 }
-                if (array[0] != null || array[1] != null) {//过滤array为null的数组
-                    list.add(array);
-                }
+                list.add(array);
             }
-            sleepData.setLeaveDatas(list);
         }
         for (int i = 0; i < list.size(); i++) {
             if (list.size() > i + 1) {
-                if (list.get(i)[1] == null && list.get(i + 1)[0] == null) {
+                if (list.get(i)[1] == 0 && list.get(i + 1)[0] == 0) {
                     list.get(i)[1] = list.get(i + 1)[1];
                     list.remove(i + 1);
                     i--;
                 }
             }
         }
-        if (n == 1) {//如果n为1，即没有离床段
+        sleepData.setLeaveDatas(list);
+        if (list.size() == 1) {//没有离床段
             //删除首行后面的所有行，首行数据为0 0
-            String[] temp = new String[]{"0", "0"};
-            List<String[]> listTemp = new ArrayList<>();
+            Integer[] temp = new Integer[]{0, 0};
+            List<Integer[]> listTemp = new ArrayList<>();
             listTemp.add(temp);
             sleepData.setLeaveDatas(listTemp);
-        } else {
-            if (null != list.get(n - 1)[0]) {//如果最后的第n次为离床
-                if (null == list.get(n - 1)[1]) {//如果最后序号的离床是不完整的，说明睡眠监测结束时一直是离床
-                    list.get(n - 1)[1] = String.valueOf(rowList.size());//将此次离床结束时间设为睡眠监测结束时刻
-                    for (int i = n; i < list.size(); i++) {//删除n+1行后无记录的数据项
-                        list.remove(i + 1);
-                        i--;
-                    }
-                }
-            } else {//如果最后的第n次不为离床
-                for (int i = n; i < list.size(); i++) {//删除n行后无记录的数据项
-                    list.remove(i);
-                    i--;
+        }else {
+            if (0 != list.get(list.size() - 1)[0]) {//如果最后的第n次为离床
+                if (0 == list.get(list.size()-1)[1]) {//如果最后序号的离床是不完整的，说明睡眠监测结束时一直是离床
+                    list.get(list.size() - 1)[1] = sleepInfo.size();//将此次离床结束时间设为睡眠监测结束时刻
                 }
             }
         }
@@ -429,7 +401,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
                     i--;
                 } else {
                     if (i < list.size() - 1) {
-                        if (Integer.valueOf(list.get(i + 1)[0]) - Integer.valueOf(list.get(i)[1]) <= 10) {
+                        if (list.get(i + 1)[0] - list.get(i)[1] <= 10) {
                             list.get(i)[1] = list.get(i + 1)[1];
                             list.remove(i + 1);
                             i--;
@@ -448,7 +420,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 off_bed_start = 1;
             }
             //结束监测的离床状态去除（不做为夜间起床）
-            if (list.get(list.size() - 1)[1].equals(String.valueOf(rowList.size()))) {
+            if (list.get(list.size() - 1)[1] == sleepInfo.size()) {
                 off_bed_end = list.size() - 1;
             } else {
                 off_bed_end = list.size();
@@ -456,7 +428,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             int offBedTime = off_bed_end - off_bed_start + 1;//离床次数
             int offBedAllTime = 0;//离床总时长
             for (int j = off_bed_start; j <= off_bed_end; j++) {
-                offBedAllTime += Integer.valueOf(list.get(j - 1)[1]) - Integer.valueOf(list.get(j - 1)[0]) + 1;
+                offBedAllTime += list.get(j - 1)[1] - list.get(j - 1)[0] + 1;
             }
             sleepData.setOffBedTime(offBedTime);
             sleepData.setOffBedAllTime(offBedAllTime);
