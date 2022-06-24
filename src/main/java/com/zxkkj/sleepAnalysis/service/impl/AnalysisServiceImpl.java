@@ -86,9 +86,9 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 onBedDataList.add(onBedData);
                 j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
                 while (j < onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() + 90){
-                    if (!"0".equals(sleepInfoList.get(j).getHr()) && !"0".equals(sleepInfoList.get(j).getRe()) || j == sleepInfoList.size()){
+                    if (0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()){
                         onBedData.setHrStartTime(j);
-                        j = onBedData.getOnBedStartTime()+90;
+                        j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime()+90;
                         break;
                     }
                     j += 1;
@@ -332,9 +332,11 @@ public class AnalysisServiceImpl implements IAnalysisService {
             } else {
                 endCursor += windows;
             }
-            Integer[] res = CommonUtils.maxOrMinHr(sleepInfoList, startTime, endCursor, k % 2 > 0 ? Constants.Min : Constants.Max);
-            startTime = res[1] + 1; //指标向右移动
-            result.add(new Integer[]{res[0], res[1]});
+            if (startTime < endCursor){
+                Integer[] res = CommonUtils.maxOrMinHr(sleepInfoList, startTime, endCursor, k % 2 > 0 ? Constants.Min : Constants.Max);
+                startTime = res[1] + 1; //指标向右移动
+                result.add(new Integer[]{res[0], res[1]});
+            }
         }
         return result;
     }
