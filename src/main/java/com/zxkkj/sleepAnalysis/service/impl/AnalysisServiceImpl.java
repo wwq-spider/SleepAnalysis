@@ -57,7 +57,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
 
     @Override
     public AnalysisReult executeAnalysis(SleepData sleepData) {
-        List<CsvRow> rowList = sleepData.getRowList();
+        List<SleepInfo> sleepInfoList = sleepData.getSleepInfoList();
         List<Integer[]> leaveDatas = sleepData.getLeaveDatas();
         List<SleepData.OnBedData> onBedDataList = new ArrayList<>();
         if (leaveDatas.size() == 0 || leaveDatas == null){//全程为睡眠段
@@ -65,7 +65,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             onBedData.setOnBedStartTime(1);
             onBedData.setOnBenEndTime(leaveDatas.size());
             for (int i = 1; i < 90; i++) {
-                if (!"0".equals(rowList.get(i).get(1)) && !"0".equals(rowList.get(i).get(2))){
+                if (!"0".equals(sleepInfoList.get(i).getHr()) && !"0".equals(sleepInfoList.get(i).getRe())){
                     onBedData.setHrStartTime(i);
                 }
                 onBedDataList.add(onBedData);
@@ -86,7 +86,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 onBedDataList.add(onBedData);
                 j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
                 while (j < onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() + 90){
-                    if (!"0".equals(rowList.get(j).get(1)) && !"0".equals(rowList.get(j).get(2)) || j == rowList.size()){
+                    if (!"0".equals(sleepInfoList.get(j).getHr()) && !"0".equals(sleepInfoList.get(j).getRe()) || j == sleepInfoList.size()){
                         onBedData.setHrStartTime(j);
                         j = onBedData.getOnBedStartTime()+90;
                         break;
@@ -97,7 +97,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 onBedData.setOnBedStartTime(leaveDatas.get(i)[1]);
             }
             //设此睡眠段结束时刻为监测结束时刻
-            onBedDataList.get(onBedDataList.size()-1).setOnBenEndTime(rowList.size());
+            onBedDataList.get(onBedDataList.size()-1).setOnBenEndTime(sleepInfoList.size());
         }
         //如果末次睡眠段未找到非0心率与非0呼吸率时刻，将此时刻设为监测终止时刻（最后一段睡眠记录不完整时出现此情况）
         if (onBedDataList.get(onBedDataList.size()-1).getHrStartTime() == 0){
@@ -107,18 +107,16 @@ public class AnalysisServiceImpl implements IAnalysisService {
         for (int j = 0; j < onBedDataList.size(); j++) {//对各睡眠段数据的0数据进行插值处理
             //在首次出现非0心率非0呼吸率后面寻找其他0心率和0呼吸率数据，并插值替换0数据值
             for (int i = onBedDataList.get(j).getHrStartTime(); i < onBedDataList.get(j).getOnBenEndTime(); i++) {
-                if ("0".equals(rowList.get(i).get(1))) {
-                    CsvRow csvRow = rowList.get(i);
-                    csvRow.set(1,rowList.get(i-1).get(1));
+                if ("0".equals(sleepInfoList.get(i).getHr())) {
+                    sleepInfoList.get(i).setHr(sleepInfoList.get(i-1).getHr());
                 }
-                if ("0".equals(rowList.get(i).get(2))){
-                    CsvRow csvRow = rowList.get(i);
-                    csvRow.set(2,rowList.get(i-1).get(2));
+                if ("0".equals(sleepInfoList.get(i).getRe())){
+                    sleepInfoList.get(i).setRe(sleepInfoList.get(i-1).getRe());
                 }
             }
         }
         //对非0心率0呼吸段的数据进行平滑滤波
-        List<CsvRow> Data_smooth = rowList;
+        List<SleepInfo> Data_smooth = sleepInfoList;
         for (int i = 0; i < onBedDataList.size(); i++) {
             int start = onBedDataList.get(i).getHrStartTime();
             int end = onBedDataList.get(i).getOnBenEndTime();
@@ -147,46 +145,56 @@ public class AnalysisServiceImpl implements IAnalysisService {
      * @param sleepData
      * @return
      */
-    private AnalysisReult.HrStatInfo sleepPhaseHrDate(List<CsvRow> Data_smooth,List<SleepData.OnBedData> onBedDataList,SleepData sleepData){
+    private AnalysisReult.HrStatInfo sleepPhaseHrDate(List<SleepInfo> Data_smooth,List<SleepData.OnBedData> onBedDataList,SleepData sleepData){
+
         AnalysisReult.HrStatInfo hrStatInfo = new AnalysisReult.HrStatInfo();
+        List<AnalysisReult.HrStatInfo> hrStatInfoList = new ArrayList<>();
+        AnalysisReult analysisReult = new AnalysisReult();
+        
         for (int i = 0; i < onBedDataList.size(); i++) {
             int start = onBedDataList.get(i).getHrStartTime();
             int end = onBedDataList.get(i).getOnBenEndTime();
-
-            String[] hr_max_min_i = new String[3];//各睡眠段心率最大、最小、平均
-            hr_max_min_i[0] = Data_smooth.get(start).get(1);//假设第一个为最大值
-            hr_max_min_i[1] = Data_smooth.get(start).get(1);//假设第一个为最小值
-            hr_max_min_i[2] = "";
+            //各睡眠段心率最大、最小、平均
+            double phaseHr_max = Data_smooth.get(start).getHr();//假设第一个为最大值
+            double phaseHr_min = Data_smooth.get(start).getHr();//假设第一个为最小值
+            double phaseHr_avg = 0.0;
             double avaTemp = 0;
             for (int j = start; j < end-1; j++) {
-                if (Integer.valueOf(Data_smooth.get(j).get(1)) > Integer.valueOf(hr_max_min_i[0])){//求心率最大值
-                    hr_max_min_i[0] = Data_smooth.get(j).get(1);
+                if (Data_smooth.get(j).getHr() > phaseHr_max){//求心率最大值
+                    phaseHr_max = Data_smooth.get(j).getHr();
                 }
-                if (Integer.valueOf(Data_smooth.get(j).get(1)) < Integer.valueOf(hr_max_min_i[1])){//求心率最大值
-                    hr_max_min_i[1] = Data_smooth.get(j).get(1);
+                if (Data_smooth.get(j).getHr() < phaseHr_min){//求心率最小值
+                    phaseHr_min = Data_smooth.get(j).getHr();
                 }
-                avaTemp += Double.valueOf(Data_smooth.get(j).get(1));//心率平均值
+                avaTemp += Double.valueOf(Data_smooth.get(j).getHr());//心率平均值
             }
-            double avas = avaTemp/(end-start);
-            hr_max_min_i[2] = String.format("%.1f",avas);
-            sleepData.getHrMaxMin().add(hr_max_min_i);
+            phaseHr_avg = avaTemp/(end-start);
+            hrStatInfo.setMax(Math.round(phaseHr_max));
+            hrStatInfo.setMin(Math.round(phaseHr_min));
+            hrStatInfo.setAvg(Math.round(phaseHr_avg));
+            hrStatInfoList.add(hrStatInfo);
         }
-        double hr_max = Double.parseDouble(sleepData.getHrMaxMin().get(0)[0]);//假设第一个为最大值
-        double hr_min = Double.parseDouble(sleepData.getHrMaxMin().get(0)[1]);//假设第一个为最小值
+        //各睡眠段心率最大、最小、平均值计算end
+        analysisReult.setHrStatInfoList(hrStatInfoList);
+        
+        //全程心率最大、最小、平均值计算start
+        double hr_max_all = hrStatInfoList.get(0).getMax();
+        double hr_min_all = hrStatInfoList.get(0).getMin();
+        double hr_avg_all = 0.0;
         double temp = 0.0;
-        for (int j = 0; j < sleepData.getHrMaxMin().size(); j++) {
-            if (Integer.valueOf(sleepData.getHrMaxMin().get(j)[0]) > hr_max){
-                hr_max = Double.parseDouble(sleepData.getHrMaxMin().get(j)[0]);
+        for (int i = 0; i < hrStatInfoList.size(); i++) {
+            if (hrStatInfoList.get(i).getMax() > hr_max_all){
+                hr_max_all = hrStatInfoList.get(i).getMax();
             }
-            if (Integer.valueOf(sleepData.getHrMaxMin().get(j)[1]) < hr_min){
-                hr_min = Double.parseDouble(sleepData.getHrMaxMin().get(j)[1]);
+            if (hrStatInfoList.get(i).getMin() < hr_min_all){
+                hr_min_all = hrStatInfoList.get(i).getMin();
             }
-            temp += Double.valueOf(sleepData.getHrMaxMin().get(j)[2]);
+            temp += hrStatInfoList.get(i).getAvg();
         }
-        double hr_avg =  temp/(sleepData.getHrMaxMin().size());
-        hrStatInfo.setMax(Math.round(hr_max));
-        hrStatInfo.setMin(Math.round(hr_min));
-        hrStatInfo.setAvg(Math.round(hr_avg));
+        hr_avg_all =  temp/hrStatInfoList.size();
+        hrStatInfo.setMax(Math.round(hr_max_all));
+        hrStatInfo.setMin(Math.round(hr_min_all));
+        hrStatInfo.setAvg(Math.round(hr_avg_all));
         return hrStatInfo;
     }
 
@@ -439,25 +447,16 @@ public class AnalysisServiceImpl implements IAnalysisService {
      * 平滑滤波
      * @param list
      */
-    public static List<CsvRow> smooth(List<CsvRow> list,int start,int end) {
+    public static List<SleepInfo> smooth(List<SleepInfo> list,int start,int end) {
         if (list.size() >= 5){
-            list.get(start).set(1,list.get(start).get(1));
-            list.get(start+1).set(1,String.valueOf((Integer.valueOf(list.get(start).get(1))+
-                    Integer.valueOf(list.get(start+1).get(1))+
-                    Integer.valueOf(list.get(start+2).get(1)))/3));
+            list.get(start).setHr(list.get(start).getHr());
+            list.get(start+1).setHr((list.get(start).getHr()+list.get(start+1).getHr()+list.get(start+2).getHr())/3);
             for (int i = start+2; i < end - 2; i++) {
-                CsvRow csvRow = (CsvRow) list.get(i);
-                csvRow.set(1,String.valueOf((Integer.valueOf(list.get(i-2).get(1))+
-                        Integer.valueOf(list.get(i-1).get(1))+
-                        Integer.valueOf(list.get(i).get(1))+
-                        Integer.valueOf(list.get(i+1).get(1))+
-                        Integer.valueOf(list.get(i+2).get(1))
-                        )/5));
+                list.get(i).setHr((list.get(i-2).getHr()+list.get(i-1).getHr()+
+                        list.get(i).getHr()+list.get(i+1).getHr()+list.get(i+2).getHr())/5);
             }
-            list.get(end-2).set(1,String.valueOf((Integer.valueOf(list.get(end-3).get(1))+
-                    Integer.valueOf(list.get(end-2).get(1))+
-                    Integer.valueOf(list.get(end-1).get(1)))/3));
-            list.get(end-1).set(1,String.valueOf(Integer.valueOf(list.get(end-1).get(1))));
+            list.get(end-2).setHr((list.get(end-3).getHr()+list.get(end-2).getHr()+list.get(end-12).getHr())/3);
+            list.get(end-1).setHr(list.get(end-1).getHr());
         }
         return list;
     }
