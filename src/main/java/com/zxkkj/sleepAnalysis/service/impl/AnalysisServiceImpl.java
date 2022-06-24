@@ -201,7 +201,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
      */
     private List<AnalysisReult.SleepStage> sleepStageSplit(List<SleepInfo> sleepInfoList, SleepData.OnBedData onBedData, boolean first, AnalysisReult.HrStatInfo htStatByWhole) {
         //先获取该睡眠段开始100秒内的最大心率
-        int maxHr = CommonUtils.maxOrMinHr(sleepInfoList.subList(onBedData.getHrStartTime(), onBedData.getHrStartTime() + 100), Constants.Max)[0];
+        int maxHr = CommonUtils.maxOrMinHr(sleepInfoList, onBedData.getHrStartTime(), onBedData.getHrStartTime() + 100, Constants.Max)[0];
 
         List<AnalysisReult.SleepStage> sleepStageList = new ArrayList<>();
 
@@ -324,10 +324,9 @@ public class AnalysisServiceImpl implements IAnalysisService {
             } else {
                 endCursor += windows;
             }
-            int type = k % 2 > 0 ? Constants.Min : Constants.Max;
-            Integer[] res = CommonUtils.maxOrMinHr(sleepInfoList.subList(startTime, endCursor), type);
-            startTime += res[1]; //指标向右移动
-            result.add(new Integer[]{res[0], startTime});
+            Integer[] res = CommonUtils.maxOrMinHr(sleepInfoList, startTime, endCursor, k % 2 > 0 ? Constants.Min : Constants.Max);
+            startTime = res[1] + 1; //指标向右移动
+            result.add(new Integer[]{res[0], res[1]});
         }
         return result;
     }
