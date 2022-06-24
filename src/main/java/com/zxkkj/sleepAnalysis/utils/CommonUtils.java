@@ -19,10 +19,10 @@ public class CommonUtils {
         if (CollectionUtil.isEmpty(rowList)) {
             throw new IllegalArgumentException("Number array must not empty !");
         } else {
-            int current = rowList.get(0).getHr();
+            double current = rowList.get(0).getHr();
             int index = 0;
             for(int i = 1; i < rowList.size(); ++i) {
-                Integer curHr = rowList.get(i).getHr();
+                double curHr = rowList.get(i).getHr();
                 if (type == Constants.Min) { //取最小
                     if (current > curHr) {
                         current = curHr;
@@ -35,7 +35,7 @@ public class CommonUtils {
                     }
                 }
             }
-            return new Integer[]{current, index};
+            return new Integer[]{(int) current, index};
         }
     }
 }
