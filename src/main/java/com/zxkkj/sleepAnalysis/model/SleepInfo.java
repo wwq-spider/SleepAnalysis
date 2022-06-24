@@ -7,7 +7,7 @@ public class SleepInfo {
     //状态
     private Integer status;
     //心率
-    private Integer hr;
+    private double hr;
     //呼吸
-    private Integer re;
+    private double re;
 }
