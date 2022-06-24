@@ -1,28 +1,27 @@
 package com.zxkkj.sleepAnalysis.utils;
-
 import cn.hutool.core.collection.CollectionUtil;
-import cn.hutool.core.text.csv.CsvRow;
 import com.zxkkj.sleepAnalysis.constants.Constants;
 import com.zxkkj.sleepAnalysis.model.SleepInfo;
-
 import java.util.List;
 
 public class CommonUtils {
 
     /**
-     * 求最大/最小心率
-     * @param rowList
-     * @param type 1:求最小  2:求最大
+     * 求心率最大值/最小值
+     * @param sleepInfoList
+     * @param start 开始下标
+     * @param end  结束下标
+     * @param type type 1:求最小  2:求最大
      * @return
      */
-    public static Integer[] maxOrMinHr(List<SleepInfo> rowList, int type) {
-        if (CollectionUtil.isEmpty(rowList)) {
+    public static Integer[] maxOrMinHr(List<SleepInfo> sleepInfoList, int start, int end, int type) {
+        if (CollectionUtil.isEmpty(sleepInfoList)) {
             throw new IllegalArgumentException("Number array must not empty !");
         } else {
-            double current = rowList.get(0).getHr();
+            double current = sleepInfoList.get(start).getHr();
             int index = 0;
-            for(int i = 1; i < rowList.size(); ++i) {
-                double curHr = rowList.get(i).getHr();
+            for(int i = start+1; i < end; ++i) {
+                double curHr = sleepInfoList.get(i).getHr();
                 if (type == Constants.Min) { //取最小
                     if (current > curHr) {
                         current = curHr;

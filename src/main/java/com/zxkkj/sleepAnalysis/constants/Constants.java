@@ -12,11 +12,12 @@ public class Constants {
      * 睡眠分期类型
      */
     public enum SleepStatus {
-        OnBed(0), //觉醒期
-        LeaveBed(1), //钱睡期
-        Move(2), //深睡期
-        ShallowBreath(4); //快速眼动睡眠期
-
+        OnBed(0), //在床
+        LeaveBed(1), //离床
+        Move(2), //体动
+        ShallowBreath(4), //若呼吸
+        Weight(5), //重物
+        Snoring(6); //打鼾
 
         @Getter
         private int value;
