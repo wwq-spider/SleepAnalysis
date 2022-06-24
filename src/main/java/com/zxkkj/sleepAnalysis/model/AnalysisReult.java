@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 分析结果
@@ -57,6 +59,11 @@ public class AnalysisReult implements Serializable {
 
         private double avg;
     }
+
+    /**
+     * 各睡眠段心率
+     */
+    private List<HrStatInfo> hrStatInfoList = new ArrayList<>();
 
     //监测总时长(秒)
     private int monitorTotalTime;
