@@ -19,7 +19,7 @@ public class CommonUtils {
             throw new IllegalArgumentException("Number array must not empty !");
         } else {
             double current = sleepInfoList.get(start).getHr();
-            int index = 0;
+            int index = start;
             for(int i = start+1; i < end; ++i) {
                 double curHr = sleepInfoList.get(i).getHr();
                 if (type == Constants.Min) { //取最小
