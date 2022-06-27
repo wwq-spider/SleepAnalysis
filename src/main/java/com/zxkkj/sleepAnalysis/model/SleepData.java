@@ -17,23 +17,34 @@ public class SleepData implements Serializable {
     private List<CsvRow> rowList = new ArrayList<>();
 
     //离床数据
-    private List<Integer[]> leaveDatas = new ArrayList<>();
+    private List<LeaveOnBedInfo> leaveDatas = new ArrayList<>();
 
     //在床数据
-    private List<String[]> bedData = new ArrayList<>();
+    private List<OnBedData> bedData = new ArrayList<>();
 
     //心率
     private List<String> hrData = new ArrayList<>();
 
     private List<SleepInfo> sleepInfoList = new ArrayList<>();
 
+    //打鼾数组
+    private List<SnoreInfo> snoreInfoList = new ArrayList<>();
+
+    //打鼾总时长
+    private int snoreAllTime;
+
+    //打鼾次数
+    private int snoreAllTimes;
+
+    //离床次数
+    private Integer offBedTime;
+
+    //总离床时长
+    private Integer offBedAllTime;
+
     //呼吸率
 
     //血氧饱和度
-
-    //离床次数及总离床时长
-    private Integer offBedTime;
-    private Integer offBedAllTime;
 
     //在床数据信息
     @Data

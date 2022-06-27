@@ -17,7 +17,7 @@ public class Constants {
         Move(2), //体动
         ShallowBreath(4), //若呼吸
         Weight(5), //重物
-        Snoring(6); //打鼾
+        Snoring(5); //打鼾
 
         @Getter
         private int value;
