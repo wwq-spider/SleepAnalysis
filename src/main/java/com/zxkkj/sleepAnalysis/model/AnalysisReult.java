@@ -83,4 +83,10 @@ public class AnalysisReult implements Serializable {
     private int DeepSleepTotalTime;
     //rem总时长
     private int remSleepTotalTime;
+    //觉醒总时长
+    private int wakeUpTotalTime;
+    //打鼾总时长
+    private int snoreAllTime;
+    //打鼾次数
+    private int snoreAllTimes;
 }

@@ -51,24 +51,29 @@ public class AnalysisServiceImpl implements IAnalysisService {
 
     @Override
     public AnalysisReult executeAnalysis(SleepData sleepData) {
+
         List<SleepInfo> sleepInfoList = sleepData.getSleepInfoList();
+
         //离床数据分析
         SleepData leaveData = new SleepData();
         leaveData = this.leaveOnBed(sleepInfoList);
         sleepData.setLeaveDatas(leaveData.getLeaveDatas());
         sleepData.setOffBedAllTime(leaveData.getOffBedAllTime());
         sleepData.setOffBedTime(leaveData.getOffBedTime());
+
         //打鼾数据分析
         SleepData sonreData = new SleepData();
         sonreData = this.getSnoreData(sleepInfoList);
         sleepData.setSnoreInfoList(sonreData.getSnoreInfoList());
         sleepData.setSnoreAllTimes(sonreData.getSnoreAllTimes());
-        sleepData.setSnoreAllTime(sleepData.getSnoreAllTime());
+        sleepData.setSnoreAllTime(sonreData.getSnoreAllTime());
+
         //在床数据分析
         List<SleepData.OnBedData> onBedDataList = new ArrayList<>();
         List<LeaveOnBedInfo> leaveDatas = sleepData.getLeaveDatas();
         onBedDataList = this.getOnBedDataInfo(leaveDatas,sleepInfoList);
         sleepData.setBedData(onBedDataList);
+
         //剔除各睡眠段偶发0数据并进行临近插值处理
         sleepInfoList = this.insertValue(onBedDataList,sleepInfoList);
         //对非0心率0呼吸段的数据进行平滑滤波
@@ -92,6 +97,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             }
         }
         int sleepTotalTime = 0;//睡眠总时长
+        int wakeUpTotalTime = 0;//觉醒总时长
         int shallowSleepTotalTime = 0;//浅睡眠总时长
         int deepSleepTotalTime = 0;//深睡眠总时长
         int remSleepTotalTime = 0;//REM总时长
@@ -106,6 +112,9 @@ public class AnalysisServiceImpl implements IAnalysisService {
             if (analysisReult.get(i).getType() == AnalysisReult.SleepStageType.RemSleep.getValue()){
                 remSleepTotalTime += (analysisReult.get(i).getEndTime() - analysisReult.get(i).getStartTime());
             }
+            if (analysisReult.get(i).getType() == AnalysisReult.SleepStageType.WakeUP.getValue()){
+                wakeUpTotalTime += (analysisReult.get(i).getEndTime() - analysisReult.get(i).getStartTime());
+            }
         }
         //结果汇总
         AnalysisReult analysisReultEnd = new AnalysisReult();
@@ -118,12 +127,27 @@ public class AnalysisServiceImpl implements IAnalysisService {
         analysisReultEnd.setShallowSleepTotalTime(shallowSleepTotalTime);//浅睡眠总时长
         analysisReultEnd.setDeepSleepTotalTime(deepSleepTotalTime);//深睡眠总时长
         analysisReultEnd.setRemSleepTotalTime(remSleepTotalTime);//rem总时长
+        analysisReultEnd.setWakeUpTotalTime(wakeUpTotalTime);//觉醒总时长
+        analysisReultEnd.setSnoreAllTime(sleepData.getSnoreAllTime());//打鼾总时长
+        analysisReultEnd.setSnoreAllTimes(sleepData.getSnoreAllTimes());//打鼾次数
         return analysisReultEnd;
     }
 
     @Override
     public void writeAnalysisResult(AnalysisReult analysisReult) {
-
+        logger.info("\n"+"监测总时长:"+analysisReult.getMonitorTotalTime()
+                +"\n"+"离床总时间:"+analysisReult.getLeaveBedTotalTime()
+                +"\n"+"在床总时长:"+analysisReult.getOnBedTotalTime()
+                +"\n"+"离床次数:"+analysisReult.getLeaveBedTimes()
+                +"\n"+"打鼾总时长:"+analysisReult.getSnoreAllTime()
+                +"\n"+"打鼾次数:"+analysisReult.getSnoreAllTimes()
+                +"\n"+"睡眠分段数量:"+analysisReult.getSleepSplitNum()
+                +"\n"+"睡眠总时长:"+analysisReult.getSleepTotalTime()
+                +"\n"+"浅睡眠总时长:"+analysisReult.getShallowSleepTotalTime()
+                +"\n"+"深睡眠总时长:"+analysisReult.getDeepSleepTotalTime()
+                +"\n"+"rem总时长:"+analysisReult.getRemSleepTotalTime()
+                +"\n"+"觉醒总时长:"+analysisReult.getWakeUpTotalTime()
+        );
     }
 
     /**
@@ -227,7 +251,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
         }
 
         //开始找浅睡期 先计算心率波峰和波谷
-        List<Integer[]> troughAndPeakList = calTroughAndPeakByBedData(sleepInfoList, onBedData);
+         List<Integer[]> troughAndPeakList = calTroughAndPeakByBedData(sleepInfoList, onBedData);
 
         //与最低心率差值 阈值
         int minHrDiffThreshold = 6;
@@ -323,14 +347,13 @@ public class AnalysisServiceImpl implements IAnalysisService {
             if (startTime + windows > sleepInfoList.size() - 120) { //防止超出数据长度
                 endCursor = sleepInfoList.size() - 120;
             } else {
-                endCursor += windows;
+                //endCursor += windows;
+                endCursor = startTime + windows;
             }
             if (startTime < endCursor){
                 Integer[] res = CommonUtils.maxOrMinHr(sleepInfoList, startTime, endCursor, k % 2 > 0 ? Constants.Min : Constants.Max);
                 startTime = res[1] + 1; //指标向右移动
                 result.add(new Integer[]{res[0], res[1]});
-            }else {
-                break;
             }
         }
         return result;
@@ -489,28 +512,6 @@ public class AnalysisServiceImpl implements IAnalysisService {
     }
 
     /**
-     * 临近插值
-     * @param onBedDataList
-     * @param sleepInfoList
-     * @return
-     */
-    private List<SleepInfo> insertValue(List<SleepData.OnBedData> onBedDataList, List<SleepInfo> sleepInfoList) {
-        for (int j = 0; j < onBedDataList.size(); j++) {//对各睡眠段数据的0数据进行插值处理
-            //在首次出现非0心率非0呼吸率后面寻找其他0心率和0呼吸率数据，并插值替换0数据值
-            for (int i = onBedDataList.get(j).getHrStartTime(); i < onBedDataList.get(j).getOnBenEndTime(); i++) {
-                if (0.0 == sleepInfoList.get(i).getHr()) {
-                    sleepInfoList.get(i).setHr(sleepInfoList.get(i).getHr());
-                    System.out.println("第"+i+"时刻出现0心率，插值。");
-                }
-                if (0.0 == sleepInfoList.get(i).getRe()) {
-                    sleepInfoList.get(i).setRe(sleepInfoList.get(i).getRe());
-                }
-            }
-        }
-        return sleepInfoList;
-    }
-
-    /**
      * 打鼾数据
      * @param sleepInfo
      * @return
@@ -519,10 +520,8 @@ public class AnalysisServiceImpl implements IAnalysisService {
 
         List<SnoreInfo> snoreInfoList = new ArrayList<>();
         int flag = 0;
-        int snortTime = 0;//打鼾时长
-        int snortTimes = 0;//打鼾次数
         SnoreInfo snoreInfo = new SnoreInfo();
-        for (int i = 0; i < sleepInfo.size(); i++) {
+        for (int i = 1358; i < sleepInfo.size() - 1; i++) {
             if (sleepInfo.get(i).getStatus() == Constants.SleepStatus.Snoring.getValue()){//判定为打鼾状态
                 if (flag == 0){
                     snoreInfo.setSnoreStartTime(i);//打鼾开始
@@ -541,17 +540,47 @@ public class AnalysisServiceImpl implements IAnalysisService {
                         snoreInfo = new SnoreInfo();
                     }
                 }
-                //记录打鼾时长
-                snortTime += 1;
-                //记录打鼾次数
-                snortTimes = snoreInfoList.size();
             }
         }
+        if (snoreInfoList.get(snoreInfoList.size()-1).getSnoreStartTime() != 0){//如果最后的第n次为打鼾
+            if (snoreInfoList.get(snoreInfoList.size()-1).getSnoreEndTime() == 0){
+                snoreInfoList.get(snoreInfoList.size()-1).setSnoreEndTime(sleepInfo.size());//将此次打鼾结束时间设为睡眠监测结束时刻
+            }
+        }
+        int snortTime = 0;//打鼾总时长
+        int snortTimes = 0;//打鼾次数
+        snortTimes = snoreInfoList.size();
+        for (int i = 0; i < snoreInfoList.size(); i++) {
+            snortTime += (snoreInfoList.get(i).getSnoreEndTime() - snoreInfoList.get(i).getSnoreStartTime());
+        }
+        //记录打鼾次数
+        snortTimes = snoreInfoList.size();
         SleepData sleepData = new SleepData();
         sleepData.setSnoreInfoList(snoreInfoList);
         sleepData.setSnoreAllTime(snortTime);
         sleepData.setSnoreAllTimes(snortTimes);
         return sleepData;
+    }
+
+    /**
+     * 临近插值
+     * @param onBedDataList
+     * @param sleepInfoList
+     * @return
+     */
+    private List<SleepInfo> insertValue(List<SleepData.OnBedData> onBedDataList, List<SleepInfo> sleepInfoList) {
+        for (int j = 0; j < onBedDataList.size(); j++) {//对各睡眠段数据的0数据进行插值处理
+            //在首次出现非0心率非0呼吸率后面寻找其他0心率和0呼吸率数据，并插值替换0数据值
+            for (int i = onBedDataList.get(j).getHrStartTime(); i < onBedDataList.get(j).getOnBenEndTime(); i++) {
+                if (0.0 == sleepInfoList.get(i).getHr()) {
+                    sleepInfoList.get(i).setHr(sleepInfoList.get(i-1).getHr());
+                }
+                if (0.0 == sleepInfoList.get(i).getRe()) {
+                    sleepInfoList.get(i).setRe(sleepInfoList.get(i-1).getRe());
+                }
+            }
+        }
+        return sleepInfoList;
     }
 
     /**
