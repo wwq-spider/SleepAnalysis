@@ -15,8 +15,8 @@ public class Constants {
         OnBed(0), //在床
         LeaveBed(1), //离床
         Move(2), //体动
-        ShallowBreath(4), //若呼吸
-        Weight(5), //重物
+        ShallowBreath(3), //弱呼吸
+        Weight(4), //重物
         Snoring(5); //打鼾
 
         @Getter
