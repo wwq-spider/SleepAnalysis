@@ -20,7 +20,7 @@ public class AnalysisReult implements Serializable {
      */
     public enum SleepStageType {
         WakeUP(1), //觉醒期
-        ShallowSleep(2), //钱睡期
+        ShallowSleep(2), //浅睡期
         DeepSleep(3), //深睡期
         RemSleep(4); //快速眼动睡眠期
 
@@ -61,13 +61,58 @@ public class AnalysisReult implements Serializable {
     }
 
     /**
+     * 呼吸率信息
+     */
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class ReStatInfo {
+
+        private double max;
+
+        private double min;
+
+        private double avg;
+    }
+
+    /**
+     * 血氧饱和度信息
+     */
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class BoStatInfo {
+
+        private double max;
+
+        private double min;
+
+        private double avg;
+    }
+
+    /**
      * 各睡眠段心率
      */
     private List<HrStatInfo> hrStatInfoList = new ArrayList<>();
 
-    //监测总时长(秒)
+    /**
+     * 各睡眠段呼吸率
+     */
+    private List<ReStatInfo> reStatInfoList = new ArrayList<>();
+
+    /**
+     * 各睡眠段血氧饱和度
+     */
+    private List<BoStatInfo> boStatInfoList = new ArrayList<>();
+
+    /**
+     * 睡眠分期
+     */
+    List<AnalysisReult.SleepStage> analysisReult = new ArrayList<>();
+
+    //监测总时长(分)
     private int monitorTotalTime;
-    //在床总时长(秒)
+    //在床总时长(分)
     private int onBedTotalTime;
     //离床次数
     private int leaveBedTimes;
@@ -89,4 +134,18 @@ public class AnalysisReult implements Serializable {
     private int snoreAllTime;
     //打鼾次数
     private int snoreAllTimes;
+    //弱呼吸总时长
+    private int shallowBreathTime;
+    //弱呼吸次数
+    private int shallowBreathTimes;
+    //浅睡眠比例
+    private double shallowSleepRatio;
+    //深睡眠比例
+    private double DeepSleepRatio;
+    //rem比例
+    private double remSleepRatio;
+    //呼吸阻塞：2:明显、1:有、0:无
+    private int sleepApnea;
+    //睡眠总体评价：2:好、1:较好、0:差
+    private int overallEvaluationOfSleep;
 }
