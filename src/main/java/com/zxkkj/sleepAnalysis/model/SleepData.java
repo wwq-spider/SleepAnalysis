@@ -30,6 +30,9 @@ public class SleepData implements Serializable {
     //打鼾数组
     private List<SnoreInfo> snoreInfoList = new ArrayList<>();
 
+    //弱呼吸数组
+    private List<ShallowBreathInfo> shallowBreathInfoList = new ArrayList<>();
+
     //打鼾总时长
     private int snoreAllTime;
 
@@ -42,6 +45,10 @@ public class SleepData implements Serializable {
     //总离床时长
     private Integer offBedAllTime;
 
+    //弱呼吸总时长
+    private int shallowBreathTime;
+    //弱呼吸次数
+    private int shallowBreathTimes;
     //呼吸率
 
     //血氧饱和度

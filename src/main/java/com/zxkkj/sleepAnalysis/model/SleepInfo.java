@@ -10,4 +10,6 @@ public class SleepInfo {
     private double hr;
     //呼吸
     private double re;
+    //血氧
+    private double bo;
 }
