@@ -9,11 +9,8 @@ import com.zxkkj.sleepAnalysis.service.IAnalysisService;
 import com.zxkkj.sleepAnalysis.service.impl.AnalysisServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * 应用程序
@@ -24,25 +21,18 @@ public class Application {
 
     public static void main(String[] args) {
 
-        Timer timer = new Timer();
-
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    /*ExecuteResult executeResult = startAnalysis(args[0]);*/
-
-                    ExecuteResult executeResult = startAnalysis("C:\\Users\\Heyq\\Desktop\\CNU0210270_Bdata_1sec_2204262255.csv");
-
-                    logger.info("analysis finished: %s", JSONObject.toJSONString(executeResult));
-                } catch (Exception e) {
-                    logger.error("startAnalysis error,", e);
-                }
-            }
-        }, 1000L, 1000000L);
+        try {
+            /*String args0 = "C:\\Users\\Heyq\\Desktop\\sleepTestNew\\testOld";
+            String args1 = "C:\\Users\\Heyq\\Desktop\\sleepTestNew\\";
+            ExecuteResult executeResult = startAnalysis(args0,args1);*/
+            ExecuteResult executeResult = startAnalysis(args[0],args[1]);
+            logger.info("analysis finished: %s", JSONObject.toJSONString(executeResult));
+        } catch (Exception e) {
+            logger.error("startAnalysis error,", e);
+        }
     }
 
-    public static ExecuteResult startAnalysis(String fileDir) {
+    public static ExecuteResult startAnalysis(String fileDir,String outTxtPath) {
 
         if (!FileUtil.exist(fileDir)) {
             logger.error("filePath: %s is not exist", fileDir);
@@ -60,16 +50,14 @@ public class Application {
 
             IAnalysisService analysisService = new AnalysisServiceImpl();
 
-            //从本地文件中读取并封装睡眠数据
             SleepData sleepData = analysisService.loadDataByLoaclFile(file);
 
             //分析结果
             AnalysisReult analysisReult = analysisService.executeAnalysis(sleepData);
 
             //结果输出
-            analysisService.writeAnalysisResult(analysisReult);
+            analysisService.writeAnalysisResult(analysisReult,outTxtPath,file);
 
-            logger.info("file: %s begin analysis", file.getName());
         }
        return executeResult;
     }
