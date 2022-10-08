@@ -2,8 +2,6 @@ package com.zxkkj.sleepAnalysis.service.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.text.csv.*;
-import com.sun.jmx.snmp.internal.SnmpOutgoingRequest;
-import com.zxkkj.sleepAnalysis.Application;
 import com.zxkkj.sleepAnalysis.constants.Constants;
 import com.zxkkj.sleepAnalysis.model.*;
 import com.zxkkj.sleepAnalysis.service.IAnalysisService;
@@ -160,11 +158,23 @@ public class AnalysisServiceImpl implements IAnalysisService {
         analysisReultEnd.setOnBedTotalTime((sleepInfoList.size() - sleepData.getOffBedAllTime()));//在床总时长(分)
         analysisReultEnd.setSleepTotalTime(sleepTotalTime);//睡眠总时长
         analysisReultEnd.setShallowSleepTotalTime(shallowSleepTotalTime);//浅睡眠总时长
-        analysisReultEnd.setShallowSleepRatio(CommonUtils.twoDecimalI(shallowSleepTotalTime,sleepTotalTime)*100);//浅睡眠比例
+        if (sleepTotalTime > 0){
+            analysisReultEnd.setShallowSleepRatio(CommonUtils.twoDecimalI(shallowSleepTotalTime,sleepTotalTime)*100);//浅睡眠比例
+        }else {
+            analysisReultEnd.setShallowSleepRatio(0.0);
+        }
         analysisReultEnd.setDeepSleepTotalTime(deepSleepTotalTime);//深睡眠总时长
-        analysisReultEnd.setDeepSleepRatio(CommonUtils.twoDecimalI(deepSleepTotalTime,sleepTotalTime)*100);//深睡眠比例
+        if (sleepTotalTime > 0){
+            analysisReultEnd.setDeepSleepRatio(CommonUtils.twoDecimalI(deepSleepTotalTime,sleepTotalTime)*100);//深睡眠比例
+        }else {
+            analysisReultEnd.setDeepSleepRatio(0.0);
+        }
         analysisReultEnd.setRemSleepTotalTime(remSleepTotalTime);//rem总时长
-        analysisReultEnd.setRemSleepRatio(CommonUtils.twoDecimalI(remSleepTotalTime,sleepTotalTime)*100);
+        if (sleepTotalTime > 0){
+            analysisReultEnd.setRemSleepRatio(CommonUtils.twoDecimalI(remSleepTotalTime,sleepTotalTime)*100);
+        }else {
+            analysisReultEnd.setRemSleepRatio(0.0);
+        }
         analysisReultEnd.setLeaveBedTimes(sleepData.getOffBedTime());//离床次数
         analysisReultEnd.setLeaveBedTotalTime(sleepData.getOffBedAllTime());//离床总时间
         analysisReultEnd.setSleepSplitNum(onBedDataList.size());//睡眠分段数量
@@ -177,8 +187,11 @@ public class AnalysisServiceImpl implements IAnalysisService {
         analysisReultEnd.setSnoreAllTime(sleepData.getSnoreAllTime());//打鼾总时长
 
         //呼吸阻塞
-        this.judgeSleepApnea(analysisReultEnd);
-
+        if (analysisReultEnd.getSleepTotalTime() > 0){
+            this.judgeSleepApnea(analysisReultEnd);
+        }else {
+            analysisReultEnd.setSleepApnea(0);
+        }
         //睡眠总体评价(根据深睡眠比例：大于30% 好、15% - 30% 较好、小于15%)
         if (analysisReultEnd.getDeepSleepRatio() >= 30.0){
             analysisReultEnd.setOverallEvaluationOfSleep(2);
@@ -773,54 +786,56 @@ public class AnalysisServiceImpl implements IAnalysisService {
         int peakAfterTimeThreshold = 3 * 60;
 
         //基于上面的心率波峰、波谷 计算浅睡期
-        for (int i=0; i < troughAndPeakList.size(); i++) {
-            AnalysisReult.SleepStage lastSleepStage = sleepStageList.get(sleepStageList.size() - 1);
-            int troughOrPeakvalue = troughAndPeakList.get(i)[0];
-            int troughOrPeakTime = troughAndPeakList.get(i)[1];
-            if (i % 2 == 0) { //波谷
-                if(troughOrPeakvalue - htStatByWhole.getMin() < minHrDiffThreshold) {
-                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
-                        lastSleepStage.setEndTime(troughOrPeakTime - troughBeforeTimeThreshold);
-                    } else { //如前期不是浅睡眠，则建立新浅睡眠分期
-                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波谷前3分钟
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
-                                lastSleepStage.getEndTime(), troughOrPeakTime - troughBeforeTimeThreshold));
-                        //第n期为深睡、起始时刻为前期的结束时刻、终止时刻为波谷后2分钟
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.DeepSleep.getValue(),
-                                troughOrPeakTime - troughBeforeTimeThreshold, troughOrPeakTime + troughAfterTimeThreshold1));
+        if (sleepStageList.size() > 0 ){
+            for (int i=0; i < troughAndPeakList.size(); i++) {
+                AnalysisReult.SleepStage lastSleepStage = sleepStageList.get(sleepStageList.size() - 1);
+                int troughOrPeakvalue = troughAndPeakList.get(i)[0];
+                int troughOrPeakTime = troughAndPeakList.get(i)[1];
+                if (i % 2 == 0) { //波谷
+                    if(troughOrPeakvalue - htStatByWhole.getMin() < minHrDiffThreshold) {
+                        if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
+                            lastSleepStage.setEndTime(troughOrPeakTime - troughBeforeTimeThreshold);
+                        } else { //如前期不是浅睡眠，则建立新浅睡眠分期
+                            //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波谷前3分钟
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                    lastSleepStage.getEndTime(), troughOrPeakTime - troughBeforeTimeThreshold));
+                            //第n期为深睡、起始时刻为前期的结束时刻、终止时刻为波谷后2分钟
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.DeepSleep.getValue(),
+                                    troughOrPeakTime - troughBeforeTimeThreshold, troughOrPeakTime + troughAfterTimeThreshold1));
+                        }
+                    } else { //整段为浅睡眠
+                        if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //如果前段已经是浅睡眠，则延续
+                            //将前期的浅睡结束时刻后延至为终止时刻为波谷后1分钟，n不变
+                            lastSleepStage.setEndTime(troughOrPeakTime + troughAfterTimeThreshold2);
+                        } else {
+                            //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波谷后1分钟
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                    lastSleepStage.getEndTime(), troughOrPeakTime + troughAfterTimeThreshold2));
+                        }
                     }
-                } else { //整段为浅睡眠
-                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //如果前段已经是浅睡眠，则延续
-                        //将前期的浅睡结束时刻后延至为终止时刻为波谷后1分钟，n不变
-                        lastSleepStage.setEndTime(troughOrPeakTime + troughAfterTimeThreshold2);
+                } else { //波峰
+                    if (Math.abs(troughOrPeakTime - sleepInfoList.size()) < 1 * 60 && (htStatByWhole.getMax() - troughOrPeakvalue) < maxHrDiffThreshold) {
+                        if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
+                            lastSleepStage.setEndTime(troughOrPeakTime - peakBeforeTimeThreshold);
+                        } else {
+                            //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波峰前2分钟
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                    lastSleepStage.getEndTime(), troughOrPeakTime - peakBeforeTimeThreshold));
+                            //第n期为觉醒、起始时刻为前期的结束时刻、终止时刻为监测终时刻
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.WakeUP.getValue(),
+                                    troughOrPeakTime - peakBeforeTimeThreshold, sleepInfoList.size()));
+                        }
                     } else {
-                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波谷后1分钟
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
-                                lastSleepStage.getEndTime(), troughOrPeakTime + troughAfterTimeThreshold2));
-                    }
-                }
-            } else { //波峰
-                if (Math.abs(troughOrPeakTime - sleepInfoList.size()) < 1 * 60 && (htStatByWhole.getMax() - troughOrPeakvalue) < maxHrDiffThreshold) {
-                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
-                        lastSleepStage.setEndTime(troughOrPeakTime - peakBeforeTimeThreshold);
-                    } else {
-                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波峰前2分钟
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
-                                lastSleepStage.getEndTime(), troughOrPeakTime - peakBeforeTimeThreshold));
-                        //第n期为觉醒、起始时刻为前期的结束时刻、终止时刻为监测终时刻
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.WakeUP.getValue(),
-                                troughOrPeakTime - peakBeforeTimeThreshold, sleepInfoList.size()));
-                    }
-                } else {
-                    if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
-                        lastSleepStage.setEndTime(troughOrPeakTime - peakAfterTimeThreshold);
-                    } else {
-                        //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波峰前3分钟
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
-                                lastSleepStage.getEndTime(), troughOrPeakTime - peakAfterTimeThreshold));
-                        //第n期为REM、起始时刻为前期的结束时刻、终止时刻为波峰后3分钟
-                        sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.RemSleep.getValue(),
-                                troughOrPeakTime - peakAfterTimeThreshold, troughOrPeakTime + peakAfterTimeThreshold));
+                        if (AnalysisReult.SleepStageType.ShallowSleep.getValue() == lastSleepStage.getType()) { //浅睡期
+                            lastSleepStage.setEndTime(troughOrPeakTime - peakAfterTimeThreshold);
+                        } else {
+                            //第n期为浅睡、起始时刻为前期的结束时刻、终止时刻为波峰前3分钟
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.ShallowSleep.getValue(),
+                                    lastSleepStage.getEndTime(), troughOrPeakTime - peakAfterTimeThreshold));
+                            //第n期为REM、起始时刻为前期的结束时刻、终止时刻为波峰后3分钟
+                            sleepStageList.add(new AnalysisReult.SleepStage(AnalysisReult.SleepStageType.RemSleep.getValue(),
+                                    troughOrPeakTime - peakAfterTimeThreshold, troughOrPeakTime + peakAfterTimeThreshold));
+                        }
                     }
                 }
             }
@@ -834,17 +849,19 @@ public class AnalysisServiceImpl implements IAnalysisService {
             }
         }
         //如果最后一个分期段的结束时间不是该睡眠段的结束时间
-        if (sleepStageList.get(sleepStageList.size()-1).getEndTime() != onBedData.getOnBenEndTime()){
+        if (sleepStageList.size() > 0 && sleepStageList.get(sleepStageList.size()-1).getEndTime() != onBedData.getOnBenEndTime()){
             sleepStageList.get(sleepStageList.size()-1).setEndTime(onBedData.getOnBenEndTime());
         }
         //将离床段拼接到分期段中
-        int end = sleepStageList.get(sleepStageList.size()-1).getEndTime();
-        for (int i = 0; i < onLeaveBed.size(); i++) {
-            if (onLeaveBed.get(i).getStartTime() - end >= 0){
-                onLeaveBed.get(i).setStartTime(onLeaveBed.get(i).getStartTime());
-                onLeaveBed.get(i).setEndTime(onLeaveBed.get(i).getEndTime());
-                sleepStageList.add(onLeaveBed.get(i));
-                return sleepStageList;
+        if (sleepStageList.size() > 0){
+            int end = sleepStageList.get(sleepStageList.size()-1).getEndTime();
+            for (int i = 0; i < onLeaveBed.size(); i++) {
+                if (onLeaveBed.get(i).getStartTime() - end >= 0){
+                    onLeaveBed.get(i).setStartTime(onLeaveBed.get(i).getStartTime());
+                    onLeaveBed.get(i).setEndTime(onLeaveBed.get(i).getEndTime());
+                    sleepStageList.add(onLeaveBed.get(i));
+                    return sleepStageList;
+                }
             }
         }
         return sleepStageList;
