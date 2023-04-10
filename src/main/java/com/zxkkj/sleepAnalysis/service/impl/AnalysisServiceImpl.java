@@ -17,15 +17,7 @@ import java.util.List;
 
 public class AnalysisServiceImpl implements IAnalysisService {
 
-
-
     public Logger logger = LoggerFactory.getLogger(getClass());
-
-    private static Logger logger1 = LoggerFactory.getLogger(AnalysisServiceImpl.class);
-
-    public static void main(String[] args) {
-        logger1.info("这是第二个main方法");
-    }
 
     @Override
     public SleepData loadDataByLoaclFile(File localFile) {
@@ -119,6 +111,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             analysisReult.add(new AnalysisReult.SleepStage(0,onLeaveBed.get(0).getStartTime(),onLeaveBed.get(0).getEndTime()));
         }
 
+        int onBedTotalTime = 0;//在床总时长
         for (int i = 0; i < onBedDataList.size(); i++) {
             if (onBedDataList.get(i).getHrStartTime() < Data_smooth.size() - 100){
                 if (i == 0){
@@ -127,8 +120,15 @@ public class AnalysisServiceImpl implements IAnalysisService {
                     analysisReult.addAll(sleepStageSplit(Data_smooth,onBedDataList.get(i),false,analysisReultEnd.getHrStatInfoList().get(0),onLeaveBed));
                 }
             }
+            //在床总时长
+            onBedTotalTime += (onBedDataList.get(i).getOnBenEndTime() - onBedDataList.get(i).getOnBedStartTime());
         }
-        analysisReult.get(0).setStartTime(1);
+        if (onBedTotalTime < 5){
+            onBedTotalTime = 0;
+        }
+        if (analysisReult.size() > 0){
+            analysisReult.get(0).setStartTime(1);
+        }
         int sleepTotalTime = 0;//睡眠总时长
         int wakeUpTotalTime = 0;//觉醒总时长
         int shallowSleepTotalTime = 0;//浅睡眠总时长
@@ -155,31 +155,25 @@ public class AnalysisServiceImpl implements IAnalysisService {
 
         //睡眠分期统计数据（时长单位为分钟）
         analysisReultEnd.setMonitorTotalTime(sleepInfoList.size());//监测总时长(分)
-        analysisReultEnd.setOnBedTotalTime((sleepInfoList.size() - sleepData.getOffBedAllTime()));//在床总时长(分)
+        //analysisReultEnd.setOnBedTotalTime((sleepInfoList.size() - sleepData.getOffBedAllTime()));//在床总时长(分)
+        analysisReultEnd.setOnBedTotalTime(onBedTotalTime);//在床总时长(分)
         analysisReultEnd.setSleepTotalTime(sleepTotalTime);//睡眠总时长
         analysisReultEnd.setShallowSleepTotalTime(shallowSleepTotalTime);//浅睡眠总时长
         if (sleepTotalTime > 0){
             analysisReultEnd.setShallowSleepRatio(CommonUtils.twoDecimalI(shallowSleepTotalTime,sleepTotalTime)*100);//浅睡眠比例
-        }else {
-            analysisReultEnd.setShallowSleepRatio(0.0);
-        }
-        analysisReultEnd.setDeepSleepTotalTime(deepSleepTotalTime);//深睡眠总时长
-        if (sleepTotalTime > 0){
             analysisReultEnd.setDeepSleepRatio(CommonUtils.twoDecimalI(deepSleepTotalTime,sleepTotalTime)*100);//深睡眠比例
-        }else {
-            analysisReultEnd.setDeepSleepRatio(0.0);
-        }
-        analysisReultEnd.setRemSleepTotalTime(remSleepTotalTime);//rem总时长
-        if (sleepTotalTime > 0){
             analysisReultEnd.setRemSleepRatio(CommonUtils.twoDecimalI(remSleepTotalTime,sleepTotalTime)*100);
         }else {
+            analysisReultEnd.setShallowSleepRatio(0.0);
+            analysisReultEnd.setDeepSleepRatio(0.0);
             analysisReultEnd.setRemSleepRatio(0.0);
         }
+        analysisReultEnd.setDeepSleepTotalTime(deepSleepTotalTime);//深睡眠总时长
+        analysisReultEnd.setRemSleepTotalTime(remSleepTotalTime);//rem总时长
         analysisReultEnd.setLeaveBedTimes(sleepData.getOffBedTime());//离床次数
         analysisReultEnd.setLeaveBedTotalTime(sleepData.getOffBedAllTime());//离床总时间
         analysisReultEnd.setSleepSplitNum(onBedDataList.size());//睡眠分段数量
         analysisReultEnd.setAnalysisReult(analysisReult);//睡眠分期
-        //analysisReultEnd.setWakeUpTotalTime(wakeUpTotalTime);//觉醒总时长
         //呼吸事件统计数据（时长为秒）
         analysisReultEnd.setShallowBreathTimes(sleepData.getShallowBreathTimes());//弱呼吸次数
         analysisReultEnd.setShallowBreathTime(sleepData.getShallowBreathTime());//弱呼吸总时长
@@ -199,6 +193,10 @@ public class AnalysisServiceImpl implements IAnalysisService {
             analysisReultEnd.setOverallEvaluationOfSleep(1);
         }else {
             analysisReultEnd.setOverallEvaluationOfSleep(0);
+        }
+        //@20230410 add 如果最后一个分期的结束时刻不等于检测总时长，将该值置为检测总时长
+        if (analysisReultEnd.getAnalysisReult().get(analysisReultEnd.getAnalysisReult().size() - 1).getEndTime() != analysisReultEnd.getMonitorTotalTime()) {
+            analysisReultEnd.getAnalysisReult().get(analysisReultEnd.getAnalysisReult().size() - 1).setEndTime(analysisReultEnd.getMonitorTotalTime());
         }
         return analysisReultEnd;
     }
@@ -300,6 +298,9 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 sleepStage = analysisReult.getAnalysisReult().get(i);
                 list.add(new Integer[]{sleepStage.getType(),sleepStage.getStartTime(),sleepStage.getEndTime()});
             }
+            if (list.size() == 0 && list != null) {
+                list.add(new Integer[]{0,0,analysisReult.getOnBedTotalTime()});
+            }
             writer = new CsvWriter(new OutputStreamWriter(fileOutputStream, StandardCharsets.UTF_8.name()));
             writer.write(list);
         }catch (Exception e){
@@ -335,7 +336,6 @@ public class AnalysisServiceImpl implements IAnalysisService {
                         +"\n"+"离床次数:"+analysisReult.getLeaveBedTimes()
                         +"\n"+"离床总时间:"+analysisReult.getLeaveBedTotalTime()
                         +"\n"+"睡眠分段数量:"+analysisReult.getSleepSplitNum()
-                        //+"\n"+"觉醒总时长:"+analysisReult.getWakeUpTotalTime()
 
                         +"\n"+"低通气次数:"+analysisReult.getShallowBreathTimes()
                         +"\n"+"低通气总时长:"+analysisReult.getShallowBreathTime()
@@ -382,9 +382,6 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 e.printStackTrace();
             }
         }
-        /*String parentPath = file.getPath();
-        String[] parentPathSplit = parentPath.split("\\\\");
-        String writeContent = parentPathSplit[parentPathSplit.length - 2] + parentPathSplit[parentPathSplit.length - 1];*/
         String writeContent = file.getPath();
         for (int i = 0; i < list.size(); i++) {
             if (writeContent.equals(list.get(i))){
@@ -450,140 +447,185 @@ public class AnalysisServiceImpl implements IAnalysisService {
         List<AnalysisReult.ReStatInfo> reStatInfoList = new ArrayList<>();
         //血氧饱和度
         List<AnalysisReult.BoStatInfo> boStatInfoList = new ArrayList<>();
-
-        for (int i = 0; i < onBedDataList.size(); i++) {
-
-            AnalysisReult.HrStatInfo hrStatInfo = new AnalysisReult.HrStatInfo();
-            AnalysisReult.ReStatInfo reStatInfo = new AnalysisReult.ReStatInfo();
+        if (onBedDataList.size() <= 0) {
             AnalysisReult.BoStatInfo boStatInfo = new AnalysisReult.BoStatInfo();
-
-            //以心率产生时刻为开始时刻
-            int start = onBedDataList.get(i).getHrStartTime();
-            int end = onBedDataList.get(i).getOnBenEndTime();
-            if (start < end){
-
-                //各睡眠段心率最大、最小、平均
-                double phaseHr_max = Math.round(Data_smooth.get(start).getHr());//假设第一个为最大值
-                double phaseHr_min = Math.round(Data_smooth.get(start).getHr());//假设第一个为最小值
-                double phaseHr_avg = 0.0;
-                double avaTempHr = 0;
-
-                //各睡眠段呼吸率最大、最小、平均
-                double phaseRe_max = Math.round(Data_smooth.get(start).getRe());
-                double phaseRe_min = Math.round(Data_smooth.get(start).getRe());
-                double phaseRe_avg = 0.0;
-                double avaTempRe = 0;
-
-                //各睡眠段呼吸率最大、最小、平均
-                double phaseBo_max = Math.round(Data_smooth.get(start).getBo());
-                double phaseBo_min = Math.round(Data_smooth.get(start).getBo());
-                double phaseBo_avg = 0.0;
-                double avaTempBo = 0;
-
-                for (int j = start; j < end; j++) {
-
-                    if (Math.round(Data_smooth.get(j).getHr()) > phaseHr_max){//求最大值
-                        phaseHr_max = Math.round(Data_smooth.get(j).getHr());
-                    }
-                    if (Math.round(Data_smooth.get(j).getHr()) < phaseHr_min){//求最小值
-                        phaseHr_min = Math.round(Data_smooth.get(j).getHr());
-                    }
-                    avaTempHr += Math.round(Data_smooth.get(j).getHr());//平均值
-
-                    if (Math.round(Data_smooth.get(j).getRe()) > phaseRe_max){
-                        phaseRe_max = Math.round(Data_smooth.get(j).getRe());
-                    }
-                    if (Math.round(Data_smooth.get(j).getRe()) < phaseRe_min){
-                        phaseRe_min = Math.round(Data_smooth.get(j).getRe());
-                    }
-                    avaTempRe += Math.round(Data_smooth.get(j).getRe());
-
-                    if (Math.round(Data_smooth.get(j).getBo()) > phaseBo_max){
-                        phaseBo_max = Math.round(Data_smooth.get(j).getBo());
-                    }
-                    if (Math.round(Data_smooth.get(j).getBo()) < phaseBo_min){
-                        phaseBo_min = Math.round(Data_smooth.get(j).getBo());
-                    }
-                    avaTempBo += Math.round(Data_smooth.get(j).getBo());
+            List<Double> boList = new ArrayList<>();
+            for (int i = 0; i < Data_smooth.size(); i++) {
+                if (Data_smooth.get(i).getBo() != 0.0){
+                    boList.add(Data_smooth.get(i).getBo());
                 }
+            }
+            //各睡眠段血氧最大、最小、平均
+            double phaseBo_max = Math.round(boList.get(0));
+            double phaseBo_min = Math.round(boList.get(0));
+            double phaseBo_avg = 0.0;
+            double avaTempBo = 0;
+            for (int i = 1; i < boList.size(); i++) {
+                if (Math.round(boList.get(i)) > phaseBo_max){
+                    phaseBo_max = Math.round(boList.get(i));
+                }
+                if (Math.round(Data_smooth.get(i).getBo()) < phaseBo_min){
+                    phaseBo_min = Math.round(boList.get(i));
+                }
+                avaTempBo += Math.round(boList.get(i));
+            }
+            phaseBo_avg = avaTempBo/boList.size();
+            boStatInfo.setMax(phaseBo_max);
+            boStatInfo.setMin(phaseBo_min);
+            boStatInfo.setAvg(Math.round(phaseBo_avg));
+            boStatInfoList.add(boStatInfo);
+        }else {
+            for (int i = 0; i < onBedDataList.size(); i++) {
 
-                phaseHr_avg = avaTempHr/(end-start);
-                hrStatInfo.setMax(phaseHr_max);
-                hrStatInfo.setMin(phaseHr_min);
-                hrStatInfo.setAvg(Math.round(phaseHr_avg));
-                hrStatInfoList.add(hrStatInfo);
+                AnalysisReult.HrStatInfo hrStatInfo = new AnalysisReult.HrStatInfo();
+                AnalysisReult.ReStatInfo reStatInfo = new AnalysisReult.ReStatInfo();
+                AnalysisReult.BoStatInfo boStatInfo = new AnalysisReult.BoStatInfo();
 
-                phaseRe_avg = avaTempRe/(end-start);
-                reStatInfo.setMax(phaseRe_max);
-                reStatInfo.setMin(phaseRe_min);
-                reStatInfo.setAvg(Math.round(phaseRe_avg));
-                reStatInfoList.add(reStatInfo);
+                //以心率产生时刻为开始时刻
+                int start = onBedDataList.get(i).getHrStartTime();
+                int end = onBedDataList.get(i).getOnBenEndTime();
+                if (start < end){
 
-                phaseBo_avg = avaTempBo/(end-start);
-                boStatInfo.setMax(phaseBo_max);
-                boStatInfo.setMin(phaseBo_min);
-                boStatInfo.setAvg(Math.round(phaseBo_avg));
-                boStatInfoList.add(boStatInfo);
+                    //各睡眠段心率最大、最小、平均
+                    double phaseHr_max = Math.round(Data_smooth.get(start).getHr());//假设第一个为最大值
+                    double phaseHr_min = Math.round(Data_smooth.get(start).getHr());//假设第一个为最小值
+                    double phaseHr_avg = 0.0;
+                    double avaTempHr = 0;
+
+                    //各睡眠段呼吸率最大、最小、平均
+                    double phaseRe_max = Math.round(Data_smooth.get(start).getRe());
+                    double phaseRe_min = Math.round(Data_smooth.get(start).getRe());
+                    double phaseRe_avg = 0.0;
+                    double avaTempRe = 0;
+
+                    //各睡眠段血氧最大、最小、平均
+                    double phaseBo_max = Math.round(Data_smooth.get(start).getBo());
+                    double phaseBo_min = Math.round(Data_smooth.get(start).getBo());
+                    double phaseBo_avg = 0.0;
+                    double avaTempBo = 0;
+
+                    for (int j = start; j < end; j++) {
+
+                        if (Math.round(Data_smooth.get(j).getHr()) > phaseHr_max){//求最大值
+                            phaseHr_max = Math.round(Data_smooth.get(j).getHr());
+                        }
+                        if (Math.round(Data_smooth.get(j).getHr()) < phaseHr_min){//求最小值
+                            phaseHr_min = Math.round(Data_smooth.get(j).getHr());
+                        }
+                        avaTempHr += Math.round(Data_smooth.get(j).getHr());//平均值
+
+                        if (Math.round(Data_smooth.get(j).getRe()) > phaseRe_max){
+                            phaseRe_max = Math.round(Data_smooth.get(j).getRe());
+                        }
+                        if (Math.round(Data_smooth.get(j).getRe()) < phaseRe_min){
+                            phaseRe_min = Math.round(Data_smooth.get(j).getRe());
+                        }
+                        avaTempRe += Math.round(Data_smooth.get(j).getRe());
+
+                        if (Math.round(Data_smooth.get(j).getBo()) > phaseBo_max){
+                            phaseBo_max = Math.round(Data_smooth.get(j).getBo());
+                        }
+                        if (Math.round(Data_smooth.get(j).getBo()) < phaseBo_min){
+                            phaseBo_min = Math.round(Data_smooth.get(j).getBo());
+                        }
+                        avaTempBo += Math.round(Data_smooth.get(j).getBo());
+                    }
+
+                    phaseHr_avg = avaTempHr/(end-start);
+                    hrStatInfo.setMax(phaseHr_max);
+                    hrStatInfo.setMin(phaseHr_min);
+                    hrStatInfo.setAvg(Math.round(phaseHr_avg));
+                    hrStatInfoList.add(hrStatInfo);
+
+                    phaseRe_avg = avaTempRe/(end-start);
+                    reStatInfo.setMax(phaseRe_max);
+                    reStatInfo.setMin(phaseRe_min);
+                    reStatInfo.setAvg(Math.round(phaseRe_avg));
+                    reStatInfoList.add(reStatInfo);
+
+                    phaseBo_avg = avaTempBo/(end-start);
+                    boStatInfo.setMax(phaseBo_max);
+                    boStatInfo.setMin(phaseBo_min);
+                    boStatInfo.setAvg(Math.round(phaseBo_avg));
+                    boStatInfoList.add(boStatInfo);
+                }
             }
         }
-
         //全程最大、最小、平均值计算start
-        double hr_max_all = hrStatInfoList.get(0).getMax();
-        double hr_min_all = hrStatInfoList.get(0).getMin();
-        double hr_avg_all = 0.0;
-        double tempHr = 0.0;
-        for (int i = 0; i < hrStatInfoList.size(); i++) {
-            if (hrStatInfoList.get(i).getMax() > hr_max_all){
-                hr_max_all = hrStatInfoList.get(i).getMax();
-            }
-            if (hrStatInfoList.get(i).getMin() < hr_min_all){
-                hr_min_all = hrStatInfoList.get(i).getMin();
-            }
-            tempHr += hrStatInfoList.get(i).getAvg();
-        }
-        hr_avg_all = tempHr/hrStatInfoList.size();
         AnalysisReult.HrStatInfo hrStatInfo = new AnalysisReult.HrStatInfo();
-        hrStatInfo.setMax(Math.round(hr_max_all));
-        hrStatInfo.setMin(Math.round(hr_min_all));
-        hrStatInfo.setAvg(Math.round(hr_avg_all));
-
-        double re_max_all = reStatInfoList.get(0).getMax();
-        double re_min_all = reStatInfoList.get(0).getMin();
-        double re_avg_all = 0.0;
-        double tempRe = 0.0;
-        for (int i = 0; i < reStatInfoList.size(); i++) {
-            if (reStatInfoList.get(i).getMax() > re_max_all){
-                re_max_all = reStatInfoList.get(i).getMax();
-            }
-            if (reStatInfoList.get(i).getMin() < re_min_all){
-                re_min_all = reStatInfoList.get(i).getMin();
-            }
-            tempRe += reStatInfoList.get(i).getAvg();
-        }
-        re_avg_all = tempRe/reStatInfoList.size();
         AnalysisReult.ReStatInfo reStatInfo = new AnalysisReult.ReStatInfo();
-        reStatInfo.setMax(Math.round(re_max_all));
-        reStatInfo.setMin(Math.round(re_min_all));
-        reStatInfo.setAvg(Math.round(re_avg_all));
-
-        double bo_max_all = boStatInfoList.get(0).getMax();
-        double bo_min_all = boStatInfoList.get(0).getMin();
-        double bo_avg_all = 0.0;
-        double tempBo = 0.0;
-        for (int i = 0; i < boStatInfoList.size(); i++) {
-            if (boStatInfoList.get(i).getMax() > bo_max_all){
-                bo_max_all = boStatInfoList.get(i).getMax();
-            }
-            if (boStatInfoList.get(i).getMin() < bo_min_all){
-                bo_min_all = boStatInfoList.get(i).getMin();
-            }
-            tempBo += boStatInfoList.get(i).getAvg();
-        }
-        bo_avg_all = tempBo/boStatInfoList.size();
         AnalysisReult.BoStatInfo boStatInfo = new AnalysisReult.BoStatInfo();
-        boStatInfo.setMax(Math.round(bo_max_all));
-        boStatInfo.setMin(Math.round(bo_min_all));
-        boStatInfo.setAvg(Math.round(bo_avg_all));
+        if (hrStatInfoList.size() > 0){
+            double hr_max_all = hrStatInfoList.get(0).getMax();
+            double hr_min_all = hrStatInfoList.get(0).getMin();
+            double hr_avg_all = 0.0;
+            double tempHr = 0.0;
+            for (int i = 0; i < hrStatInfoList.size(); i++) {
+                if (hrStatInfoList.get(i).getMax() > hr_max_all){
+                    hr_max_all = hrStatInfoList.get(i).getMax();
+                }
+                if (hrStatInfoList.get(i).getMin() < hr_min_all){
+                    hr_min_all = hrStatInfoList.get(i).getMin();
+                }
+                tempHr += hrStatInfoList.get(i).getAvg();
+            }
+            hr_avg_all = tempHr/hrStatInfoList.size();
+            hrStatInfo.setMax(Math.round(hr_max_all));
+            hrStatInfo.setMin(Math.round(hr_min_all));
+            hrStatInfo.setAvg(Math.round(hr_avg_all));
+        }else {
+            hrStatInfo.setMax(0.0);
+            hrStatInfo.setMin(0.0);
+            hrStatInfo.setAvg(0.0);
+        }
+
+        if (reStatInfoList.size() > 0){
+            double re_max_all = reStatInfoList.get(0).getMax();
+            double re_min_all = reStatInfoList.get(0).getMin();
+            double re_avg_all = 0.0;
+            double tempRe = 0.0;
+            for (int i = 0; i < reStatInfoList.size(); i++) {
+                if (reStatInfoList.get(i).getMax() > re_max_all){
+                    re_max_all = reStatInfoList.get(i).getMax();
+                }
+                if (reStatInfoList.get(i).getMin() < re_min_all){
+                    re_min_all = reStatInfoList.get(i).getMin();
+                }
+                tempRe += reStatInfoList.get(i).getAvg();
+            }
+            re_avg_all = tempRe/reStatInfoList.size();
+            reStatInfo.setMax(Math.round(re_max_all));
+            reStatInfo.setMin(Math.round(re_min_all));
+            reStatInfo.setAvg(Math.round(re_avg_all));
+        }else {
+            reStatInfo.setMax(0.0);
+            reStatInfo.setMin(0.0);
+            reStatInfo.setAvg(0.0);
+        }
+
+        if (boStatInfoList.size() > 0){
+            double bo_max_all = boStatInfoList.get(0).getMax();
+            double bo_min_all = boStatInfoList.get(0).getMin();
+            double bo_avg_all = 0.0;
+            double tempBo = 0.0;
+            for (int i = 0; i < boStatInfoList.size(); i++) {
+                if (boStatInfoList.get(i).getMax() > bo_max_all){
+                    bo_max_all = boStatInfoList.get(i).getMax();
+                }
+                if (boStatInfoList.get(i).getMin() < bo_min_all){
+                    bo_min_all = boStatInfoList.get(i).getMin();
+                }
+                tempBo += boStatInfoList.get(i).getAvg();
+            }
+            bo_avg_all = tempBo/boStatInfoList.size();
+            boStatInfo.setMax(Math.round(bo_max_all));
+            boStatInfo.setMin(Math.round(bo_min_all));
+            boStatInfo.setAvg(Math.round(bo_avg_all));
+        }else {
+            boStatInfo.setMax(0.0);
+            boStatInfo.setMin(0.0);
+            boStatInfo.setAvg(0.0);
+        }
 
         AnalysisReult analysisReult = new AnalysisReult();
         List<AnalysisReult.HrStatInfo> hrStatInfoList1 = new ArrayList<>();//全程最大、最小、平均心率值
@@ -772,18 +814,22 @@ public class AnalysisServiceImpl implements IAnalysisService {
         //与最低心率差值 阈值
         int minHrDiffThreshold = 6;
         //波谷前偏移时间
-        int troughBeforeTimeThreshold = 3 * 60;
+        //int troughBeforeTimeThreshold = 3 * 60;
+        int troughBeforeTimeThreshold = 9 * 60;
         //波谷后偏移时间
-        int troughAfterTimeThreshold1 = 2 * 60;
+        //int troughAfterTimeThreshold1 = 2 * 60;
+        int troughAfterTimeThreshold1 = 8 * 60;
         //波谷后偏移时间
         int troughAfterTimeThreshold2 = 1 * 60;
 
         //波峰与最大心率差值阈值
         int maxHrDiffThreshold = 8;
         //波峰前时间阈值
-        int peakBeforeTimeThreshold = 2 * 60;
+        //int peakBeforeTimeThreshold = 2 * 60;
+        int peakBeforeTimeThreshold = 4 * 60;
         //波峰后时间阈值
-        int peakAfterTimeThreshold = 3 * 60;
+        //int peakAfterTimeThreshold = 3 * 60;
+        int peakAfterTimeThreshold = 6 * 60;
 
         //基于上面的心率波峰、波谷 计算浅睡期
         if (sleepStageList.size() > 0 ){
@@ -918,72 +964,89 @@ public class AnalysisServiceImpl implements IAnalysisService {
         List<LeaveOnBedInfo> leaveOnBedList = new ArrayList<>();
         int flag = 0;
         LeaveOnBedInfo leaveOnBedInfo = new LeaveOnBedInfo();
-        for (int i = 0; i < sleepInfo.size()-1; i++) {
-            if (sleepInfo.get(i).getStatus() == Constants.SleepStatus.LeaveBed.getValue()){//离床状态
-                if (flag == 0){//i时刻刚变为离床状态
-                    leaveOnBedInfo.setLeaveOnBedStartTime(i);//离床开始
-                    flag = 1;
-                    if (sleepInfo.get(i+1).getStatus() - sleepInfo.get(i).getStatus() != 0){
-                        leaveOnBedInfo.setLeaveOnBedEndTime(i);
-                        leaveOnBedList.add(leaveOnBedInfo);
-                        flag= 0;
-                        leaveOnBedInfo = new LeaveOnBedInfo();
-                    }
-                }else {
-                    if (sleepInfo.get(i+1).getStatus() - sleepInfo.get(i).getStatus() != 0 && flag != 0){
-                        leaveOnBedInfo.setLeaveOnBedEndTime(i);
-                        leaveOnBedList.add(leaveOnBedInfo);
-                        flag= 0;
-                        leaveOnBedInfo = new LeaveOnBedInfo();
-                    }
-                }
+        SleepData sleepData = new SleepData();
+        //监测时长-离床时长小于等于300秒，判定全程为离床
+        List<Integer> listLeaveBed = new ArrayList();
+        for (int i = 0; i < sleepInfo.size(); i++) {
+            if (sleepInfo.get(i).getStatus() == Constants.SleepStatus.LeaveBed.getValue()){
+                listLeaveBed.add(i);
             }
         }
-        if (leaveOnBedInfo.getLeaveOnBedStartTime() != 0){//如果最后序号的离床是不完整的，说明睡眠监测结束时一直是离床
+        if (sleepInfo.size() - listLeaveBed.size() < 300){
+            leaveOnBedInfo.setLeaveOnBedStartTime(1);
             leaveOnBedInfo.setLeaveOnBedEndTime(sleepInfo.size());
             leaveOnBedList.add(leaveOnBedInfo);
-        }
-        //过滤极短的离床时间段（离床状态短于5秒，两次离床小于10秒）
-        int leaveStart = 0;
-        int leaveEnd = 0;
-        if (leaveOnBedList.size() > 0){//有离床
-            for (int i = 0; i < leaveOnBedList.size() - 1; i++) {
-                if (leaveOnBedList.get(i).getLeaveOnBedEndTime() - leaveOnBedList.get(i).getLeaveOnBedStartTime() <= 5){
-                    leaveOnBedList.remove(i);
-                    i--;
-                }else {
-                    if (leaveOnBedList.get(i+1).getLeaveOnBedStartTime() - leaveOnBedList.get(i).getLeaveOnBedEndTime() <= 10){
-                        leaveOnBedList.get(i).setLeaveOnBedEndTime(leaveOnBedList.get(i+1).getLeaveOnBedEndTime());
-                        leaveOnBedList.remove(i+1);
-                        i--;
+            sleepData.setLeaveDatas(leaveOnBedList);//离床数据
+            sleepData.setOffBedAllTime(sleepInfo.size());//离床总时长
+            sleepData.setOffBedTime(1);//离床次数
+        }else {
+            for (int i = 0; i < sleepInfo.size()-1; i++) {
+                if (sleepInfo.get(i).getStatus() == Constants.SleepStatus.LeaveBed.getValue()){//离床状态
+                    if (flag == 0){//i时刻刚变为离床状态
+                        leaveOnBedInfo.setLeaveOnBedStartTime(i);//离床开始
+                        flag = 1;
+                        if (sleepInfo.get(i+1).getStatus() - sleepInfo.get(i).getStatus() != 0){
+                            leaveOnBedInfo.setLeaveOnBedEndTime(i);
+                            leaveOnBedList.add(leaveOnBedInfo);
+                            flag= 0;
+                            leaveOnBedInfo = new LeaveOnBedInfo();
+                        }
+                    }else {
+                        if (sleepInfo.get(i+1).getStatus() - sleepInfo.get(i).getStatus() != 0 && flag != 0){
+                            leaveOnBedInfo.setLeaveOnBedEndTime(i);
+                            leaveOnBedList.add(leaveOnBedInfo);
+                            flag= 0;
+                            leaveOnBedInfo = new LeaveOnBedInfo();
+                        }
                     }
                 }
             }
-            //验证最后一个离床段间距是否小于等于5，不满足，剔除
-            if (leaveOnBedList.get(leaveOnBedList.size()-1).getLeaveOnBedEndTime() - leaveOnBedList.get(leaveOnBedList.size()-1).getLeaveOnBedStartTime() <= 5){
-                leaveOnBedList.remove(leaveOnBedList.size()-1);
+            if (leaveOnBedInfo.getLeaveOnBedStartTime() != 0){//如果最后序号的离床是不完整的，说明睡眠监测结束时一直是离床
+                leaveOnBedInfo.setLeaveOnBedEndTime(sleepInfo.size());
+                leaveOnBedList.add(leaveOnBedInfo);
             }
-            //刚开始监测的离床状态去除（不做为夜间起床）
-            if (leaveOnBedList.get(0).getLeaveOnBedStartTime() == 0){
-                leaveStart += 1;
-            }else {
-                leaveStart = 0;
+            //过滤极短的离床时间段（离床状态短于5秒，两次离床小于10秒）
+            int leaveStart = 0;
+            int leaveEnd = 0;
+            if (leaveOnBedList.size() > 0){//有离床
+                for (int i = 0; i < leaveOnBedList.size() - 1; i++) {
+                    if (leaveOnBedList.get(i).getLeaveOnBedEndTime() - leaveOnBedList.get(i).getLeaveOnBedStartTime() <= 5){
+                        leaveOnBedList.remove(i);
+                        i--;
+                    }else {
+                        if (leaveOnBedList.get(i+1).getLeaveOnBedStartTime() - leaveOnBedList.get(i).getLeaveOnBedEndTime() <= 10){
+                            leaveOnBedList.get(i).setLeaveOnBedEndTime(leaveOnBedList.get(i+1).getLeaveOnBedEndTime());
+                            leaveOnBedList.remove(i+1);
+                            i--;
+                        }
+                    }
+                }
+                //验证最后一个离床段间距是否小于等于5，不满足，剔除
+                if (leaveOnBedList.get(leaveOnBedList.size()-1).getLeaveOnBedEndTime() - leaveOnBedList.get(leaveOnBedList.size()-1).getLeaveOnBedStartTime() <= 5){
+                    leaveOnBedList.remove(leaveOnBedList.size()-1);
+                }
+                //刚开始监测的离床状态去除（不做为夜间起床）
+                if (leaveOnBedList.size() > 0 && leaveOnBedList.get(0).getLeaveOnBedStartTime() == 0){
+                    leaveStart += 1;
+                }else {
+                    leaveStart = 0;
+                }
+                //结束监测的离床状态去除（不做为夜间起床）
+                if (leaveOnBedList.size() > 0 && leaveOnBedList.get(leaveOnBedList.size()-1).getLeaveOnBedEndTime() == sleepInfo.size()){
+                    leaveEnd = leaveOnBedList.size()-1;
+                }else {
+                    leaveEnd = leaveOnBedList.size();
+                }
             }
-            //结束监测的离床状态去除（不做为夜间起床）
-            if (leaveOnBedList.get(leaveOnBedList.size()-1).getLeaveOnBedEndTime() == sleepInfo.size()){
-                leaveEnd = leaveOnBedList.size()-1;
-            }else {
-                leaveEnd = leaveOnBedList.size();
+            int leaveOnBedTime = 0;//离床时长
+            for (int i = leaveStart; i < leaveEnd; i++) {
+                leaveOnBedTime += (leaveOnBedList.get(i).getLeaveOnBedEndTime() - leaveOnBedList.get(i).getLeaveOnBedStartTime() + 1);
             }
+            sleepData.setLeaveDatas(leaveOnBedList);//离床数据
+            sleepData.setOffBedAllTime(leaveOnBedTime);//离床总时长
+            sleepData.setOffBedTime(leaveEnd - leaveStart);//离床次数
         }
-        SleepData sleepData = new SleepData();
-        int leaveOnBedTime = 0;//离床时长
-        for (int i = leaveStart; i < leaveEnd; i++) {
-            leaveOnBedTime += (leaveOnBedList.get(i).getLeaveOnBedEndTime() - leaveOnBedList.get(i).getLeaveOnBedStartTime() + 1);
-        }
-        sleepData.setLeaveDatas(leaveOnBedList);//离床数据
-        sleepData.setOffBedAllTime(leaveOnBedTime);//离床总时长
-        sleepData.setOffBedTime(leaveEnd - leaveStart);//离床次数
+
         return sleepData;
     }
 
@@ -1007,60 +1070,62 @@ public class AnalysisServiceImpl implements IAnalysisService {
             }
             onBedDataList.add(onBedData);
         }else {
-            int start = 0;
-            int j = 0;
-            SleepData.OnBedData onBedData = new SleepData().new OnBedData();
-            if (leaveDatas.get(0).getLeaveOnBedStartTime() == 0){//如果监测从离床状态开始
-                onBedData.setOnBedStartTime(leaveDatas.get(0).getLeaveOnBedEndTime());
-                start = 1;
-            }else {
-                onBedData.setOnBedStartTime(0);
-                start = 0;
-            }
-            for (int i = start; i < leaveDatas.size(); i++) {
-                onBedData.setOnBenEndTime(leaveDatas.get(i).getLeaveOnBedStartTime());
-                onBedDataList.add(onBedData);
-                j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
-                if ((j+ 90) < sleepInfoList.size()){
-                    while (j < onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() + 90){
-                        if (0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()){
-                            onBedData.setHrStartTime(j);
-                            j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime()+90;
-                            break;
-                        }
-                        j += 1;
-                    }
+            if (leaveDatas.get(0).getLeaveOnBedEndTime() != sleepInfoList.size()){
+                int start = 0;
+                int j = 0;
+                SleepData.OnBedData onBedData = new SleepData().new OnBedData();
+                if (leaveDatas.get(0).getLeaveOnBedStartTime() == 0){//如果监测从离床状态开始
+                    onBedData.setOnBedStartTime(leaveDatas.get(0).getLeaveOnBedEndTime());
+                    start = 1;
+                }else {
+                    onBedData.setOnBedStartTime(0);
+                    start = 0;
                 }
-                onBedData = new SleepData().new OnBedData();
-                onBedData.setOnBedStartTime(leaveDatas.get(i).getLeaveOnBedEndTime());
-                if (i == leaveDatas.size() - 1){//获取最后一个睡眠段
+                for (int i = start; i < leaveDatas.size(); i++) {
+                    onBedData.setOnBenEndTime(leaveDatas.get(i).getLeaveOnBedStartTime());
                     onBedDataList.add(onBedData);
-                    j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime()-1;
-                    if ((j+ 90) < sleepInfoList.size()) {
-                        while (j < onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90) {
-                            if (0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()) {
+                    j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
+                    if ((j+ 90) < sleepInfoList.size()){
+                        while (j < onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() + 90){
+                            if (0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()){
                                 onBedData.setHrStartTime(j);
-                                j = onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90;
+                                j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime()+90;
                                 break;
                             }
                             j += 1;
                         }
                     }
-                }
-            }
-            if (onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() >= sleepInfoList.size()){
-                onBedDataList.remove(onBedDataList.size()-1);
-            }else {
-                //设此睡眠段结束时刻为监测结束时刻
-                onBedDataList.get(onBedDataList.size()-1).setOnBenEndTime(sleepInfoList.size());
-                j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
-                while (j < onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90) {
-                    if (j < sleepInfoList.size() && 0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()) {
-                        onBedData.setHrStartTime(j);
-                        j = onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90;
-                        break;
+                    onBedData = new SleepData().new OnBedData();
+                    onBedData.setOnBedStartTime(leaveDatas.get(i).getLeaveOnBedEndTime());
+                    if (i == leaveDatas.size() - 1){//获取最后一个睡眠段
+                        onBedDataList.add(onBedData);
+                        j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime()-1;
+                        if ((j+ 90) < sleepInfoList.size()) {
+                            while (j < onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90) {
+                                if (0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()) {
+                                    onBedData.setHrStartTime(j);
+                                    j = onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90;
+                                    break;
+                                }
+                                j += 1;
+                            }
+                        }
                     }
-                    j += 1;
+                }
+                if (onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime() >= sleepInfoList.size()){
+                    onBedDataList.remove(onBedDataList.size()-1);
+                }else {
+                    //设此睡眠段结束时刻为监测结束时刻
+                    onBedDataList.get(onBedDataList.size()-1).setOnBenEndTime(sleepInfoList.size());
+                    j = onBedDataList.get(onBedDataList.size()-1).getOnBedStartTime();
+                    while (j < onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90) {
+                        if (j < sleepInfoList.size() && 0.0 != sleepInfoList.get(j).getHr() && 0.0 != sleepInfoList.get(j).getRe() || j == sleepInfoList.size()) {
+                            onBedData.setHrStartTime(j);
+                            j = onBedDataList.get(onBedDataList.size() - 1).getOnBedStartTime() + 90;
+                            break;
+                        }
+                        j += 1;
+                    }
                 }
             }
         }

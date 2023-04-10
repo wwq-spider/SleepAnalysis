@@ -22,8 +22,8 @@ public class Application {
     public static void main(String[] args) {
 
         try {
-            /*String args0 = "C:\\Users\\Heyq\\Desktop\\sleepTestNew\\testOld";
-            String args1 = "C:\\Users\\Heyq\\Desktop\\sleepTestNew\\";
+            /*String args0 = "C:\\Users\\Heyq\\Desktop\\sleepData\\11433";
+            String args1 = "C:\\Users\\Heyq\\Desktop\\sleepData\\11433";
             ExecuteResult executeResult = startAnalysis(args0,args1);*/
             ExecuteResult executeResult = startAnalysis(args[0],args[1]);
             logger.info("analysis finished: %s", JSONObject.toJSONString(executeResult));
