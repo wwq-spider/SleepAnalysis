@@ -195,7 +195,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             analysisReultEnd.setOverallEvaluationOfSleep(0);
         }
         //@20230410 add 如果最后一个分期的结束时刻不等于检测总时长，将该值置为检测总时长
-        if (analysisReultEnd.getAnalysisReult().get(analysisReultEnd.getAnalysisReult().size() - 1).getEndTime() != analysisReultEnd.getMonitorTotalTime()) {
+        if (analysisReultEnd.getAnalysisReult().size() > 0 && analysisReultEnd.getAnalysisReult().get(analysisReultEnd.getAnalysisReult().size() - 1).getEndTime() != analysisReultEnd.getMonitorTotalTime()) {
             analysisReultEnd.getAnalysisReult().get(analysisReultEnd.getAnalysisReult().size() - 1).setEndTime(analysisReultEnd.getMonitorTotalTime());
         }
         return analysisReultEnd;
