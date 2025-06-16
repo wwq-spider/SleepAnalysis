@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -148,4 +149,14 @@ public class AnalysisReult implements Serializable {
     private int sleepApnea;
     //睡眠总体评价：2:好、1:较好、0:差
     private int overallEvaluationOfSleep;
+
+    //高低心率比例
+    BigDecimal highRateRatio = BigDecimal.ZERO;
+    //在床数据比例
+    BigDecimal onBedRateRatio = BigDecimal.ZERO;
+    //离床数据比例
+    BigDecimal leaveBedRateRatio = BigDecimal.ZERO;
+    //重物数据比例
+    BigDecimal heavyRateRatio = BigDecimal.ZERO;
+
 }

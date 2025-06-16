@@ -4,9 +4,9 @@ import cn.hutool.core.text.csv.CsvRow;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 睡眠数据
@@ -44,6 +44,9 @@ public class SleepData implements Serializable {
 
     //总离床时长
     private Integer offBedAllTime;
+
+    //在床时长
+    private Integer onBedAllTime;
 
     //弱呼吸总时长
     private int shallowBreathTime;
