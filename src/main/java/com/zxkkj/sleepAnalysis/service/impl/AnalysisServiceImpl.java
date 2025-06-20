@@ -100,7 +100,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
         }
         int totalCount = sleepInfos.size();
         List<Integer> highRateIndices = new ArrayList<>();
-        List<Integer> heavyIndices = new ArrayList<>();
+        //List<Integer> heavyIndices = new ArrayList<>();
         int countS = 0;
         for (int i = 0; i < sleepInfos.size(); i++) {
             //高低心率
@@ -114,22 +114,21 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 countS++;
             }
             //找到所有重物元素的索引
-            if (sleepInfos.get(i).getMonitorStatus() == 4){
+            /*if (sleepInfos.get(i).getMonitorStatus() == 4){
                 heavyIndices.add(i);
-            }
+            }*/
         }
         int countL = highRateIndices.size();
         int countT = countL + countS;
 
-        int count4 = heavyIndices.size();
+        //int count4 = heavyIndices.size();
         //高低心率比例
         BigDecimal highRateRatio = new BigDecimal(countT).divide(new BigDecimal(totalCount), 2, RoundingMode.HALF_UP);
         //重物数据比例
-        BigDecimal heavyRateRatio = new BigDecimal(count4).divide(new BigDecimal(totalCount), 2, RoundingMode.HALF_UP);
+        //BigDecimal heavyRateRatio = new BigDecimal(count4).divide(new BigDecimal(totalCount), 2, RoundingMode.HALF_UP);
         //System.out.println("文件：" + file.getName() + "，高低心率比例：" + highRateRatio + "，重物数据比例：" + heavyRateRatio);
-        //高低心率比例或重物数据比例超过30%，不做数据分析
-        if (highRateRatio.compareTo(maxProportion) == 1 || highRateRatio.compareTo(maxProportion) == 0
-                || heavyRateRatio.compareTo(maxProportion) == 1 || heavyRateRatio.compareTo(maxProportion) == 0) {
+        //高低心率比例超过30%，不做数据分析
+        if (highRateRatio.compareTo(maxProportion) == 1 || highRateRatio.compareTo(maxProportion) == 0) {
             return false;
         }
         //监测数据有效，对个别错误数据进行修正
