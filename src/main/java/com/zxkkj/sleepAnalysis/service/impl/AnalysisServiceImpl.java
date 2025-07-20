@@ -84,10 +84,10 @@ public class AnalysisServiceImpl implements IAnalysisService {
         List<SleepInfo> list = new ArrayList<>();
         for (CsvRow row : rowList) {
             SleepInfo sleepInfo = new SleepInfo();
-            sleepInfo.setBo(Double.parseDouble(row.get(1)));
-            sleepInfo.setMonitorStatus(Integer.valueOf(row.get(2)));
-            sleepInfo.setHr(Double.parseDouble(row.get(3)));
-            sleepInfo.setRe(Double.parseDouble(row.get(4)));
+            sleepInfo.setBo(row.get(1) == null ? 0.0 : Double.parseDouble(row.get(1).trim()));
+            sleepInfo.setMonitorStatus(row.get(2) == null ? 0 : Integer.valueOf(row.get(2)));
+            sleepInfo.setHr(row.get(3) == null ? 0.0 : Double.parseDouble(row.get(3)));
+            sleepInfo.setRe(row.get(4) == null ? 0.0 : Double.parseDouble(row.get(4)));
             list.add(sleepInfo);
         }
         return list;
@@ -900,7 +900,8 @@ public class AnalysisServiceImpl implements IAnalysisService {
         //在床时长=在床+体动+弱呼吸+打鼾
         int inBedTime = 0;
         for (int i = 0; i < sleepInfo.size(); i++) {
-            if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()){
+            if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue() ||
+                    sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.Weight.getValue()){
                 listLeaveBed.add(i);
             }else if (sleepInfo.get(i).getMonitorStatus() != Constants.SleepStatus.Weight.getValue()){
                 inBedTime++;
@@ -916,7 +917,8 @@ public class AnalysisServiceImpl implements IAnalysisService {
             sleepData.setOffBedTime(1);//离床次数
         }else {
             for (int i = 0; i < sleepInfo.size()-1; i++) {
-                if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()){//离床状态
+                if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()
+                        || sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.Weight.getValue()){//离床状态
                     if (flag == 0){//i时刻刚变为离床状态
                         leaveOnBedInfo.setLeaveOnBedStartTime(i);//离床开始
                         flag = 1;
