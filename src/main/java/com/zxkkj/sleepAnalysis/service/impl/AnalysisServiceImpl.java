@@ -43,7 +43,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             logger.info("file: %s begin analysis", file.getName());
 
             //读取源文件数据并封装
-            SleepData sleepData = this.loadDataByLoaclFile(file);
+            SleepData sleepData = this.loadDataByLocalFile(file);
 
             //判断睡眠监测数据是否有效
             boolean isEffective = this.dataCheck(sleepData,file);
@@ -62,7 +62,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
         return executeResult;
     }
 
-    public SleepData loadDataByLoaclFile(File localFile) {
+    public SleepData loadDataByLocalFile(File localFile) {
         //解析csv文件
         CsvReadConfig csvConfig = new CsvReadConfig();
         List<CsvRow> rowList = CsvUtil.getReader(csvConfig).read(localFile).getRows();
@@ -88,6 +88,13 @@ public class AnalysisServiceImpl implements IAnalysisService {
             sleepInfo.setMonitorStatus(row.get(2) == null ? 0 : Integer.valueOf(row.get(2)));
             sleepInfo.setHr(row.get(3) == null ? 0.0 : Double.parseDouble(row.get(3)));
             sleepInfo.setRe(row.get(4) == null ? 0.0 : Double.parseDouble(row.get(4)));
+            //重物状态归并到离床，且将离床状态的心率置为0，防止分析时出现错误
+            if (sleepInfo.getMonitorStatus() == Constants.SleepStatus.Weight.getValue()){
+                sleepInfo.setMonitorStatus(Constants.SleepStatus.LeaveBed.getValue());
+            }
+            if (sleepInfo.getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()){
+                sleepInfo.setHr(0);
+            }
             list.add(sleepInfo);
         }
         return list;
@@ -96,11 +103,10 @@ public class AnalysisServiceImpl implements IAnalysisService {
     private boolean dataCheck(SleepData sleepData,File file) {
         List<SleepInfo> sleepInfos = sleepData.getSleepInfoList();
         if (sleepInfos == null || sleepInfos.size() == 0) {
-            throw new IllegalArgumentException("输入数据不能为null");
+            throw new IllegalArgumentException("dataCheck：输入数据不能为null");
         }
         int totalCount = sleepInfos.size();
         List<Integer> highRateIndices = new ArrayList<>();
-        //List<Integer> heavyIndices = new ArrayList<>();
         int countS = 0;
         for (int i = 0; i < sleepInfos.size(); i++) {
             //高低心率
@@ -113,10 +119,6 @@ public class AnalysisServiceImpl implements IAnalysisService {
             if (heartRate < minAbnormalHeartRate && status != 1 && status != 4) {
                 countS++;
             }
-            //找到所有重物元素的索引
-            /*if (sleepInfos.get(i).getMonitorStatus() == 4){
-                heavyIndices.add(i);
-            }*/
         }
         int countL = highRateIndices.size();
         int countT = countL + countS;
@@ -132,7 +134,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             return false;
         }
         //监测数据有效，对个别错误数据进行修正
-        for (int i = 1; i < sleepInfos.size(); i++) {
+        /*for (int i = 1; i < sleepInfos.size(); i++) {
             SleepInfo current = sleepInfos.get(i);
             SleepInfo previous = sleepInfos.get(i - 1);
             double hr = current.getHr();
@@ -143,7 +145,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
                 current.setHr(isFirstAbnormal ? 60 : previous.getHr());
                 isFirstAbnormal = false;
             }
-        }
+        }*/
         return true;
     }
 
@@ -900,8 +902,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
         //在床时长=在床+体动+弱呼吸+打鼾
         int inBedTime = 0;
         for (int i = 0; i < sleepInfo.size(); i++) {
-            if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue() ||
-                    sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.Weight.getValue()){
+            if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()){
                 listLeaveBed.add(i);
             }else if (sleepInfo.get(i).getMonitorStatus() != Constants.SleepStatus.Weight.getValue()){
                 inBedTime++;
@@ -917,8 +918,7 @@ public class AnalysisServiceImpl implements IAnalysisService {
             sleepData.setOffBedTime(1);//离床次数
         }else {
             for (int i = 0; i < sleepInfo.size()-1; i++) {
-                if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()
-                        || sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.Weight.getValue()){//离床状态
+                if (sleepInfo.get(i).getMonitorStatus() == Constants.SleepStatus.LeaveBed.getValue()){//离床状态
                     if (flag == 0){//i时刻刚变为离床状态
                         leaveOnBedInfo.setLeaveOnBedStartTime(i);//离床开始
                         flag = 1;
