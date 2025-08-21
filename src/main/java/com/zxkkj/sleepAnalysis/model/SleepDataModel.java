@@ -1,4 +1,4 @@
-package com.zxkkj.sleepAnalysis.service;
+package com.zxkkj.sleepAnalysis.model;
 
 public interface SleepDataModel {
     int getNormalStatus();

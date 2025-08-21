@@ -1,4 +1,6 @@
-package com.zxkkj.sleepAnalysis.service;
+package com.zxkkj.sleepAnalysis.processor;
+
+import com.zxkkj.sleepAnalysis.model.SleepDataModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,15 +32,13 @@ public class BreathingRateSegmentProcessor {
     }
 
     public ProcessingResult process(List<SleepDataModel> data, List<int[]> zeroHeartRateSegments) {
-        // 1. 复制零心率段作为零呼吸率段
+        // 复制零心率段作为零呼吸率段
         List<int[]> zeroBreathingRateSegments = new ArrayList<>();
         for (int[] segment : zeroHeartRateSegments) {
             zeroBreathingRateSegments.add(new int[]{segment[0], segment[1]});
         }
-
-        // 2. 统计零呼吸率段数量
-        int zeroSegmentCount = zeroBreathingRateSegments.size();
-
+        // 统计零呼吸率段数量
+        //int zeroSegmentCount = zeroBreathingRateSegments.size();
         return new ProcessingResult(data, zeroBreathingRateSegments);
     }
 }

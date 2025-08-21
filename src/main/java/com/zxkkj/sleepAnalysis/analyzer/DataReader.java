@@ -1,4 +1,6 @@
-package com.zxkkj.sleepAnalysis.service;
+package com.zxkkj.sleepAnalysis.analyzer;
+
+import com.zxkkj.sleepAnalysis.model.SleepDataModel;
 
 import java.util.List;
 

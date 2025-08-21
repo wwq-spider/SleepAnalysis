@@ -1,68 +1,55 @@
 package com.zxkkj.sleepAnalysis.model;
 
-import cn.hutool.core.text.csv.CsvRow;
-import lombok.Data;
+public class SleepData implements SleepDataModel {
+    /**
+     * A列：床垫正常状态
+     */
+    private int normalStatus;
+    /**
+     * B列：血氧
+     */
+    private double bloodOxygen;
+    /**
+     * C列：在床状态 (0-在床, 1-离床, 4-重物)
+     */
+    private int bedStatus;
+    /**
+     * D列：心率
+     */
+    private double heartRate;
+    /**
+     * E列：呼吸率
+     */
+    private double breathingRate;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-
-/**
- * 睡眠数据
- */
-@Data
-public class SleepData implements Serializable {
-
-    private List<CsvRow> rowList = new ArrayList<>();
-
-    //离床数据
-    private List<LeaveOnBedInfo> leaveDatas = new ArrayList<>();
-
-    //在床数据
-    private List<OnBedData> bedData = new ArrayList<>();
-
-    //心率
-    private List<String> hrData = new ArrayList<>();
-
-    private List<SleepInfo> sleepInfoList = new ArrayList<>();
-
-    //打鼾数组
-    private List<SnoreInfo> snoreInfoList = new ArrayList<>();
-
-    //弱呼吸数组
-    private List<ShallowBreathInfo> shallowBreathInfoList = new ArrayList<>();
-
-    //打鼾总时长
-    private int snoreAllTime;
-
-    //打鼾次数
-    private int snoreAllTimes;
-
-    //离床次数
-    private Integer offBedTime;
-
-    //总离床时长
-    private Integer offBedAllTime;
-
-    //在床时长
-    private Integer onBedAllTime;
-
-    //弱呼吸总时长
-    private int shallowBreathTime;
-    //弱呼吸次数
-    private int shallowBreathTimes;
-    //呼吸率
-
-    //血氧饱和度
-
-    //在床数据信息
-    @Data
-    public class OnBedData{
-
-        private int onBedStartTime;
-
-        private int hrStartTime;
-
-        private int onBenEndTime;
+    public SleepData(int normalStatus, double bloodOxygen, int bedStatus,
+                     int heartRate, double breathingRate) {
+        this.normalStatus = normalStatus;
+        this.bloodOxygen = bloodOxygen;
+        this.bedStatus = bedStatus;
+        this.heartRate = heartRate;
+        this.breathingRate = breathingRate;
     }
+
+    public SleepData(SleepDataModel other) {
+        this.heartRate = other.getHeartRate();
+        this.breathingRate = other.getBreathingRate();
+    }
+
+
+    @Override public int getNormalStatus() { return normalStatus; }
+    @Override public double getBloodOxygen() { return bloodOxygen; }
+    @Override public int getBedStatus() { return bedStatus; }
+    @Override public double getHeartRate() { return heartRate; }
+    @Override public double getBreathingRate() { return breathingRate; }
+    @Override public void setBedStatus(int status) { this.bedStatus = status; }
+    @Override
+    public void setHeartRate(double rate) {
+        this.heartRate = (int) rate;
+    }
+    @Override
+    public void setBreathingRate(double rate) {
+        this.breathingRate = rate;
+    }
+
 }

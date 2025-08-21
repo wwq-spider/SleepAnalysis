@@ -1,8 +1,7 @@
-package com.zxkkj.sleepAnalysis.service.impl;
+package com.zxkkj.sleepAnalysis.analyzer;
 
-import com.zxkkj.sleepAnalysis.model2.SleepData;
-import com.zxkkj.sleepAnalysis.service.DataReader;
-import com.zxkkj.sleepAnalysis.service.SleepDataModel;
+import com.zxkkj.sleepAnalysis.model.SleepData;
+import com.zxkkj.sleepAnalysis.model.SleepDataModel;
 
 import java.io.BufferedReader;
 import java.io.FileReader;

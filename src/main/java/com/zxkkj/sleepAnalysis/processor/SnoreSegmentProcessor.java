@@ -1,11 +1,11 @@
-package com.zxkkj.sleepAnalysis.service;
+package com.zxkkj.sleepAnalysis.processor;
+
+import com.zxkkj.sleepAnalysis.model.SleepDataModel;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class SnoreSegmentProcessor {
-
-    // 处理结果封装类
     public static class ProcessingResult {
         private final List<int[]> snoreSegments;
         private final int snoreSegmentCount;
